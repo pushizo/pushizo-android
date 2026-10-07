@@ -60,6 +60,7 @@ data class HsPushSubscriptionState(val id: String?, val token: String?, val opte
  * ```kotlin
  * HeroSignal.initialize(this, "app_…", HeroSignal.Options(apiUrl = "https://api.example.com"))
  * HeroSignal.Notifications.requestPermission(activity)
+ * HeroSignal.Notifications.addPermissionObserver { granted -> }
  * HeroSignal.login("user_42")
  * HeroSignal.User.addTag("plan", "pro")
  * HeroSignal.User.addEmail("ali@example.com")
@@ -90,6 +91,7 @@ object HeroSignal {
     private val clickListeners = CopyOnWriteArraySet<(HsClickEvent) -> Unit>()
     private val foregroundListeners = CopyOnWriteArraySet<(HsForegroundEvent) -> Unit>()
     private val subscriptionObservers = CopyOnWriteArraySet<(HsPushSubscriptionState) -> Unit>()
+    private val permissionObservers = HsPermissionObservers { HsLog.w("izin gözlemcisi hata verdi", it) }
     @Volatile private var sessionStartedAt: Long = 0
     @Volatile private var identityVerificationRequired = false
     @Volatile private var pendingClick: HsClickEvent? = null
@@ -131,6 +133,8 @@ object HeroSignal {
         }
         inApp = HsInAppController(inAppHost).also { it.attach() }
         ProcessLifecycleOwner.get().lifecycle.addObserver(lifecycleObserver)
+        // İzin gözlemcileri için temel değer (yalnızca sonraki değişiklikler bildirilir).
+        permissionObservers.update(Notifications.permission)
         if (options.requiresPrivacyConsent && !store.consentGiven) {
             HsLog.i("gizlilik onayı bekleniyor")
             return
@@ -430,6 +434,8 @@ object HeroSignal {
             enqueue(JSONObject().put("type", "session_start").put("at", sessionStartedAt))
             inApp?.onSessionStart()
             pendingClick?.let { click -> pendingClick = null; clickListeners.forEach { it(click) } }
+            // Kullanıcı izni sistem ayarlarından değiştirmiş olabilir.
+            checkPermissionChange()
         }
         override fun onStop(owner: LifecycleOwner) {
             if (sessionStartedAt == 0L) return
@@ -473,6 +479,37 @@ object HeroSignal {
     private fun notifySubscription() {
         val s = User.pushSubscription.state
         subscriptionObservers.forEach { it(s) }
+    }
+
+    /**
+     * Etkin izni yeniden ölçer; değiştiyse izin gözlemcileri çağrılır, sunucudaki cihaz bilgisi (`push_capable`)
+     * güncellenir ve abonelik gözlemcileri bilgilendirilir. Uygulama ön plana geldiğinde çalışır.
+     */
+    private fun checkPermissionChange() {
+        if (storage == null) return
+        val granted = Notifications.permission
+        if (permissionObservers.update(granted)) {
+            syncPermissionState(granted)
+            notifySubscription()
+        }
+    }
+
+    /** İzin durumunu sunucuya yansıtır: kayıt varsa cihaz bilgisi PATCH edilir, yoksa izin verildiyse kayıt oluşturulur. */
+    private fun syncPermissionState(granted: Boolean) {
+        scope.launch {
+            val store = storage ?: return@launch
+            val ctx = appContext ?: return@launch
+            if (options.requiresPrivacyConsent && !store.consentGiven) return@launch
+            val subId = store.subscriptionId
+            runCatching {
+                if (subId != null) api!!.request("PATCH", "/subscriptions/$subId", HsOwnership.withProof(JSONObject().put("device", deviceInfo(ctx)), store.registeredToken))
+                else if (granted) store.fcmToken?.let { registerSubscription(it) }
+            }.onFailure {
+                HsLog.w("izin sonrası abonelik güncellenemedi", it)
+                reportError("subscription_update_failed", "izin sonrası abonelik güncellenemedi", it)
+            }
+            notifySubscription()
+        }
     }
 
     // --- Public API ---
@@ -628,7 +665,18 @@ object HeroSignal {
     object Notifications {
         const val PERMISSION_REQUEST_CODE = 0x4853
 
-        /** Bildirim izni var mı (Android 13+ POST_NOTIFICATIONS; önceki sürümlerde kanal/sistem ayarı). */
+        /**
+         * İzin gözlemcisi (Java/köprüler için); `granted` yeni etkin izin durumudur. Ana iş parçacığında çağrılır.
+         * Kotlin'de `addPermissionObserver { granted -> }` biçimi de kullanılabilir.
+         */
+        fun interface PermissionObserver {
+            fun onChange(granted: Boolean)
+        }
+
+        /**
+         * Bildirim izni var mı (Android 13+ POST_NOTIFICATIONS; önceki sürümlerde kanal/sistem ayarı); eşzamanlı okunur.
+         * Java: `HeroSignal.Notifications.INSTANCE.getPermission()`.
+         */
         val permission: Boolean
             get() {
                 val ctx = appContext ?: return false
@@ -645,24 +693,29 @@ object HeroSignal {
             }
         }
 
-        /** Activity `onRequestPermissionsResult` içinden çağrılır; izin verildiyse abonelik güncellenir. */
+        /**
+         * Activity `onRequestPermissionsResult` içinden çağrılır; izin verildiyse (veya durum değiştiyse) abonelik
+         * güncellenir ve durum değiştiyse izin gözlemcileri çağrılır.
+         */
         @JvmStatic fun onPermissionResult() {
-            if (permission) scope.launch {
-                val store = storage ?: return@launch
-                val ctx = appContext ?: return@launch
-                val subId = store.subscriptionId
-                runCatching {
-                    // Kayıt varsa yalnızca cihaz bilgisi (push_capable) güncellenir; yoksa kayıt oluşturulur.
-                    if (subId != null) api!!.request("PATCH", "/subscriptions/$subId", HsOwnership.withProof(JSONObject().put("device", deviceInfo(ctx)), store.registeredToken))
-                    else store.fcmToken?.let { registerSubscription(it) }
-                }.onFailure {
-                    HsLog.w("izin sonrası abonelik güncellenemedi", it)
-                    reportError("subscription_update_failed", "izin sonrası abonelik güncellenemedi", it)
-                }
-                notifySubscription()
-            }
+            val granted = permission
+            val changed = permissionObservers.update(granted)
+            // Kayıt varsa yalnızca cihaz bilgisi (push_capable) güncellenir; yoksa kayıt oluşturulur.
+            if (granted || changed) syncPermissionState(granted)
             notifySubscription()
         }
+
+        /**
+         * Etkin bildirim izni değiştiğinde çağrılır: [requestPermission] sonucu ([onPermissionResult]) ve uygulama
+         * ön plana döndüğünde (izin sistem ayarlarından değiştirilmiş olabilir). İlk durum bildirilmez; güncel değer
+         * için [permission] okunur.
+         */
+        @JvmStatic fun addPermissionObserver(observer: PermissionObserver) = permissionObservers.add(observer)
+        @JvmStatic fun removePermissionObserver(observer: PermissionObserver) = permissionObservers.remove(observer)
+
+        /** Kotlin lambda sürümü (Java'da [PermissionObserver] sürümü görünür; aşırı yükleme belirsizliği olmaz). */
+        @JvmSynthetic fun addPermissionObserver(observer: (Boolean) -> Unit) = permissionObservers.add(observer)
+        @JvmSynthetic fun removePermissionObserver(observer: (Boolean) -> Unit) = permissionObservers.remove(observer)
 
         @JvmStatic fun addClickListener(listener: (HsClickEvent) -> Unit) {
             clickListeners.add(listener)
