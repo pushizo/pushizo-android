@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- In-app mesaj erişilebilirlik etiketleri (uygulama aynı adla ezebilir). -->
+    <string name="hs_in_app_close">Close</string>
+    <string name="hs_in_app_message">Message</string>
+</resources>

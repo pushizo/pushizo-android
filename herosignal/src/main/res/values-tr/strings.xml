@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hs_in_app_close">Kapat</string>
+    <string name="hs_in_app_message">Mesaj</string>
+</resources>
