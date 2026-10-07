@@ -105,4 +105,41 @@ class HsPayloadTest {
         assertEquals(100, batch.getJSONArray("events").length())
         assertEquals("e0", batch.getJSONArray("events").getJSONObject(0).getString("name"))
     }
+
+    @Test
+    fun `ikon renk ve gorunurluk alanlari ayristirilir`() {
+        val data = mapOf(
+            "hs_delivery_id" to "dlv_5",
+            "hs_title" to "Başlık",
+            "hs_small_icon" to "ic_stat_promo",
+            "hs_large_icon" to "https://cdn.example.com/avatar.png",
+            "hs_accent_color" to "FF9900FF",
+            "hs_visibility" to "-1",
+            "hs_group" to "orders",
+        )
+        val n = HsNotification.fromFcm(data, null, null, null, null, null)
+        assertEquals("ic_stat_promo", n.smallIcon)
+        assertEquals("https://cdn.example.com/avatar.png", n.largeIcon)
+        assertEquals(0xFF9900FF.toInt(), n.accentColor)
+        assertEquals(-1, n.visibility)
+        assertEquals("orders", n.groupKey)
+        // Kimlik deterministiktir: collapse yoksa teslimat kimliğinden türetilir.
+        assertEquals("dlv_5".hashCode(), n.androidNotificationId)
+        assertEquals("c1".hashCode(), HsNotification.fromFcm(mapOf("hs_delivery_id" to "dlv_5", "hs_collapse" to "c1"), null, null, null, null, null).androidNotificationId)
+        // Müşteri verisine hs_* alanları sızmaz.
+        assertEquals(emptyMap<String, String>(), n.data)
+    }
+
+    @Test
+    fun `gecersiz renk ve gorunurluk yok sayilir`() {
+        assertEquals(0xFF336699.toInt(), HsNotification.parseAccentColor("#336699"))
+        assertEquals(0x80112233.toInt(), HsNotification.parseAccentColor("80112233"))
+        assertNull(HsNotification.parseAccentColor("red"))
+        assertNull(HsNotification.parseAccentColor("FF99"))
+        assertNull(HsNotification.parseAccentColor(null))
+        assertEquals(1, HsNotification.parseVisibility("1"))
+        assertEquals(0, HsNotification.parseVisibility(" 0 "))
+        assertNull(HsNotification.parseVisibility("2"))
+        assertNull(HsNotification.parseVisibility("public"))
+    }
 }

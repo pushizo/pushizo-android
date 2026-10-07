@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
@@ -21,9 +23,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-    }
-    kotlinOptions {
-        jvmTarget = "17"
     }
 
     testOptions {
@@ -61,5 +60,12 @@ publishing {
             version = "0.1.0"
             afterEvaluate { from(components["release"]) }
         }
+    }
+}
+
+// `kotlinOptions` KGP 2.2'de kaldırıldı; `compilerOptions` 2.0+ ile uyumludur (örnek uygulamalar KGP 2.2 kullanır).
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
     }
 }

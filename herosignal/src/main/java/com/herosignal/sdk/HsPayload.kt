@@ -26,6 +26,19 @@ data class HsNotification(
     val groupKey: String? = null,
     /** Sessiz (content_available) mesaj: gösterilmez, yalnızca `received` bildirilir. */
     val silent: Boolean = false,
+    /** Küçük ikon drawable kaynak adı (`hs_small_icon`); bulunamazsa varsayılan ikon. */
+    val smallIcon: String? = null,
+    /** Büyük ikon (`hs_large_icon`): http(s) URL'si veya drawable/mipmap kaynak adı. */
+    val largeIcon: String? = null,
+    /** Vurgu rengi (`hs_accent_color`, ARGB hex "FF9900FF" → Android renk tamsayısı). */
+    val accentColor: Int? = null,
+    /** Kilit ekranı görünürlüğü (`hs_visibility`): 1 public, 0 private, -1 secret. */
+    val visibility: Int? = null,
+    /**
+     * Tepsideki Android bildirim kimliği (`removeNotification` ile kaldırmak için). Collapse kimliği veya teslimat
+     * kimliğinden türetilir; ikisi de yoksa oluşturulduğu ana göre tekildir.
+     */
+    val androidNotificationId: Int = (collapseKey ?: deliveryId ?: System.nanoTime().toString()).hashCode(),
 ) {
     /** Tıklanan düğmenin URL'si; yoksa bildirim URL'si. */
     fun urlFor(actionId: String?): String? = actions.firstOrNull { it.id == actionId }?.url ?: url
@@ -34,7 +47,8 @@ data class HsNotification(
         /**
          * FCM mesajını ayrıştırır. Sunucu artık yalnızca `data` gönderir: `hs` (JSON: dlv, msg, url, buttons),
          * `hs_title`, `hs_body`, `hs_subtitle`, `hs_image`, `hs_url`, `hs_actions`, `hs_channel`, `hs_sound`,
-         * `hs_collapse`, `hs_group`, `hs_silent` + müşteri verileri. Eski payload'lardaki `notification`
+         * `hs_collapse`, `hs_group`, `hs_silent`, `hs_small_icon`, `hs_large_icon`, `hs_accent_color`,
+         * `hs_visibility` + müşteri verileri. Eski payload'lardaki `notification`
          * bloğu değerleri (title/body/image/tag/channel) parametre olarak verilirse önceliklidir.
          */
         fun fromFcm(data: Map<String, String>, title: String?, body: String?, imageUrl: String?, collapseKey: String?, channelId: String?): HsNotification {
@@ -56,8 +70,26 @@ data class HsNotification(
                 sound = data["hs_sound"].nonBlank(),
                 groupKey = data["hs_group"].nonBlank(),
                 silent = data["hs_silent"] == "1",
+                smallIcon = data["hs_small_icon"].nonBlank(),
+                largeIcon = data["hs_large_icon"].nonBlank(),
+                accentColor = parseAccentColor(data["hs_accent_color"]),
+                visibility = parseVisibility(data["hs_visibility"]),
             )
         }
+
+        /**
+         * ARGB ("FF9900FF") veya RGB ("9900FF") hex metnini renk tamsayısına çevirir; başta `#` olabilir.
+         * RGB verilirse tam opak kabul edilir. Geçersiz değerde null.
+         */
+        fun parseAccentColor(raw: String?): Int? {
+            val hex = raw?.trim()?.removePrefix("#") ?: return null
+            if (!hex.matches(Regex("[0-9a-fA-F]{6}|[0-9a-fA-F]{8}"))) return null
+            val argb = if (hex.length == 6) "FF$hex" else hex
+            return argb.toLong(16).toInt()
+        }
+
+        /** eski sağlayıcı `android_visibility`: 1 public, 0 private, -1 secret (NotificationCompat.VISIBILITY_* ile aynı değerler). */
+        fun parseVisibility(raw: String?): Int? = raw?.trim()?.toIntOrNull()?.takeIf { it in -1..1 }
 
         /** `hs` alanı veya `hs_*` anahtarı içeren mesajlar HeroSignal'e aittir. */
         fun isHeroSignal(data: Map<String, String>): Boolean = data.keys.any { it == "hs" || it.startsWith("hs_") }

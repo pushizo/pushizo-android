@@ -671,6 +671,24 @@ object HeroSignal {
         @JvmStatic fun removeClickListener(listener: (HsClickEvent) -> Unit) { clickListeners.remove(listener) }
         @JvmStatic fun addForegroundLifecycleListener(listener: (HsForegroundEvent) -> Unit) { foregroundListeners.add(listener) }
         @JvmStatic fun removeForegroundLifecycleListener(listener: (HsForegroundEvent) -> Unit) { foregroundListeners.remove(listener) }
+
+        /**
+         * Tepsideki tüm HeroSignal bildirimlerini (grup özetleri dahil) kaldırır. Android'de başlatıcı rozeti/noktası
+         * görünen bildirimlerden hesaplandığından rozet de sıfırlanır. Uygulamanın kendi bildirimlerine dokunulmaz.
+         */
+        @JvmStatic fun clearAll() {
+            appContext?.let { HsNotificationTray.clearAll(it) }
+        }
+
+        /** Tek bir HeroSignal bildirimini kaldırır ([HsNotification.androidNotificationId]). */
+        @JvmStatic fun removeNotification(androidNotificationId: Int) {
+            appContext?.let { HsNotificationTray.remove(it, androidNotificationId) }
+        }
+
+        /** Aynı grup anahtarına (`android_group`) sahip tüm bildirimleri ve grup özetini kaldırır. */
+        @JvmStatic fun removeGroupedNotifications(group: String) {
+            appContext?.let { HsNotificationTray.removeGroup(it, group) }
+        }
     }
 
     object Session {
