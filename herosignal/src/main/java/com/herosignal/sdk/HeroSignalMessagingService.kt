@@ -163,8 +163,8 @@ class HeroSignalMessagingService : FirebaseMessagingService() {
             return context.resources.getIdentifier(clean, type, context.packageName).takeIf { it != 0 }
         }
 
-        /** `hs_sound`: "default" → sistem sesi; aksi halde `res/raw/<ad>` (uzantısız) aranır. */
-        private fun soundUri(context: Context, sound: String?): Uri? {
+        /** `hs_sound`: "default" → sistem sesi; aksi halde `res/raw/<ad>` (uzantısız) aranır. Kanal sesi için de kullanılır. */
+        internal fun soundUri(context: Context, sound: String?): Uri? {
             if (sound.isNullOrBlank() || sound == "default") return null
             val name = sound.substringBeforeLast('.').lowercase()
             val resId = context.resources.getIdentifier(name, "raw", context.packageName)
@@ -172,6 +172,10 @@ class HeroSignalMessagingService : FirebaseMessagingService() {
             return Uri.parse("${ContentResolver.SCHEME_ANDROID_RESOURCE}://${context.packageName}/raw/$name")
         }
 
+        /**
+         * Kanal yoksa oluşturur. Dashboard'daki kanallar (`android_channels`) başlatmada [HsNotificationChannels] ile
+         * kurulduğundan `android_channel_id` o kanalı kullanır; tanımsız kimlikte kimliği ad olan yüksek öncelikli kanal açılır.
+         */
         private fun ensureChannel(context: Context, channelId: String, soundUri: Uri?) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
             val manager = context.getSystemService(NotificationManager::class.java)

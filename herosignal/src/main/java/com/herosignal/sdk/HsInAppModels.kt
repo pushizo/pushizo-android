@@ -13,6 +13,8 @@ sealed class HsInAppTrigger {
     data class Screen(val name: String) : HsInAppTrigger()
     /** `InAppMessages.addTrigger(key, value)` değerleri; `op`: eq | neq | exists | gt | lt. `value` String veya Number. */
     data class Condition(val key: String, val op: String, val value: Any?) : HsInAppTrigger()
+    /** Geçerli ön plan oturumu en az `seconds` saniye sürdüğünde (ADR-0019 §7); SDK süre dolunca yeniden değerlendirir. */
+    data class SessionDuration(val seconds: Long) : HsInAppTrigger()
     /** Bu SDK sürümünün tanımadığı tetik türü: mesaj gösterilmez. */
     data class Unsupported(val kind: String) : HsInAppTrigger()
 }
@@ -26,6 +28,10 @@ sealed class HsInAppAction {
     data class Deeplink(val url: String) : HsInAppAction()
     /** Kullanıcıya etiket yazar (`User.addTags`). */
     data class Tags(val tags: Map<String, String>) : HsInAppAction()
+    /** Yerel bildirim izni istemini açar (Android 13+ `POST_NOTIFICATIONS`), ardından mesaj kapanır. */
+    object PushPrompt : HsInAppAction()
+    /** `Session.sendEvent(name, value)` ile outcome olayı gönderir (dönüşüm atribüsyonu), ardından mesaj kapanır. */
+    data class Outcome(val name: String, val value: Double?) : HsInAppAction()
 }
 
 /** Mesaj içerik bloğu; metinler sunucuda kullanıcının dilinde çözülmüş düz dizedir. */
@@ -62,11 +68,17 @@ data class HsInAppDisplay(
     val buttons: List<HsInAppBlock.Button> get() = blocks.filterIsInstance<HsInAppBlock.Button>()
 }
 
-/** Sunucunun cihaz için döndürdüğü gösterilebilir in-app mesaj. Zamanlar epoch milisaniyedir. */
+/**
+ * Sunucunun cihaz için döndürdüğü gösterilebilir in-app mesaj. Zamanlar epoch milisaniyedir.
+ * [triggerGroups] VEYA ile bağlı gruplardır (grup içi VE); [triggers] ilk gruptur (geriye uyum).
+ */
 data class HsInAppMessage(
     val id: String,
     val priority: Int,
     val triggers: List<HsInAppTrigger>,
+    val triggerGroups: List<List<HsInAppTrigger>>,
+    /** Sunucunun seçtiği A/B görünüm varyantı; olay bildirimlerinde geri gönderilir. */
+    val variantId: String?,
     val display: HsInAppDisplay,
     val remainingImpressions: Int,
     val minIntervalSeconds: Long,
@@ -107,10 +119,13 @@ internal object HsInAppParser {
 
     fun parseMessage(item: JSONObject): HsInAppMessage {
         val display = item.getJSONObject("display")
+        val groups = parseTriggerGroups(item.optJSONArray("trigger_groups"), item.optJSONArray("triggers") ?: JSONArray())
         return HsInAppMessage(
             id = item.getString("id"),
             priority = item.optInt("priority", 0),
-            triggers = parseTriggers(item.optJSONArray("triggers") ?: JSONArray()),
+            triggers = groups.first(),
+            triggerGroups = groups,
+            variantId = item.optStringOrNull("variant_id"),
             display = HsInAppDisplay(
                 layout = HsInAppLayout.from(display.optString("layout")),
                 backgroundColor = display.optStringOrNull("background_color"),
@@ -128,10 +143,20 @@ internal object HsInAppParser {
         )
     }
 
+    /**
+     * `trigger_groups` (VEYA grupları) yoksa veya boşsa `triggers` tek grup olur; boş grup (tetiksiz mesaj) korunur.
+     * Sonuç her zaman en az bir grup içerir.
+     */
+    fun parseTriggerGroups(groups: JSONArray?, triggers: JSONArray): List<List<HsInAppTrigger>> {
+        val parsed = if (groups == null) emptyList() else (0 until groups.length()).mapNotNull { i -> groups.optJSONArray(i)?.let(::parseTriggers) }
+        return parsed.ifEmpty { listOf(parseTriggers(triggers)) }
+    }
+
     fun parseTriggers(arr: JSONArray): List<HsInAppTrigger> = (0 until arr.length()).mapNotNull { i ->
         val t = arr.optJSONObject(i) ?: return@mapNotNull null
         when (val kind = t.optString("kind")) {
             "session_start" -> HsInAppTrigger.SessionStart
+            "session_duration" -> HsInAppTrigger.SessionDuration(t.getLong("seconds"))
             "event" -> HsInAppTrigger.Event(t.getString("name"))
             "screen" -> HsInAppTrigger.Screen(t.getString("name"))
             "trigger" -> HsInAppTrigger.Condition(
@@ -173,6 +198,11 @@ internal object HsInAppParser {
             "tags" -> {
                 val tags = a.optJSONObject("tags") ?: JSONObject()
                 HsInAppAction.Tags(tags.keys().asSequence().associateWith { tags.optString(it) })
+            }
+            "push_prompt" -> HsInAppAction.PushPrompt
+            // Adsız outcome düğmesi geçersizdir (atlanır); değer sayı değilse null.
+            "outcome" -> a.optStringOrNull("name")?.let { name ->
+                HsInAppAction.Outcome(name, if (a.isNull("value")) null else (a.opt("value") as? Number)?.toDouble()?.takeIf { it.isFinite() })
             }
             else -> HsInAppAction.Dismiss
         }

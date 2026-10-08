@@ -105,12 +105,20 @@ object HeroSignal {
             api?.request(method, path, body) ?: throw HsApiException(0, "NOT_INITIALIZED", "SDK başlatılmadı")
         override fun enqueue(op: JSONObject) = HeroSignal.enqueue(op)
         override fun addTags(tags: Map<String, String>) = User.addTags(tags)
+        override fun sendEvent(name: String, value: Double?) = Session.sendEvent(name, emptyMap(), value)
+        override fun requestPushPermission(activity: Activity?) {
+            if (activity == null) HsLog.w("push_prompt: ön planda Activity yok, izin istenemedi")
+            else Notifications.requestPermission(activity)
+        }
         override fun runInBackground(block: () -> Unit) { scope.launch { block() } }
         override fun reportError(code: String, message: String, error: Throwable?) = HeroSignal.reportError(code, message, error)
         override fun pendingInAppMessageIds(): Set<String> = storage?.queue.orEmpty()
             .filter { it.optString("type") == "in_app_event" }
             .mapNotNull { it.optString("message_id").ifBlank { null } }
             .toSet()
+        override var lastInAppImpressionAt: Long?
+            get() = storage?.lastInAppImpressionAt
+            set(value) { storage?.lastInAppImpressionAt = value }
     }
 
     val isInitialized: Boolean get() = storage != null
@@ -131,7 +139,11 @@ object HeroSignal {
         queue = HsQueue(store, { op -> perform(op) }) { op, e ->
             reportError("operation_rejected", "kuyruk işlemi sunucu tarafından reddedildi", e, mapOf("operation" to op.optString("type")))
         }
-        inApp = HsInAppController(inAppHost).also { it.attach() }
+        inApp = HsInAppController(inAppHost).also {
+            // Config gelene kadar son bilinen app geneli aralık uygulanır.
+            it.globalMinIntervalSeconds = store.inAppMinIntervalSeconds
+            it.attach()
+        }
         ProcessLifecycleOwner.get().lifecycle.addObserver(lifecycleObserver)
         // İzin gözlemcileri için temel değer (yalnızca sonraki değişiklikler bildirilir).
         permissionObservers.update(Notifications.permission)
@@ -152,10 +164,7 @@ object HeroSignal {
 
     private fun start() {
         scope.launch {
-            runCatching {
-                val config = api!!.request("GET", "/config")
-                identityVerificationRequired = config.optBoolean("identity_verification_required", false)
-            }.onFailure {
+            runCatching { applyConfig(api!!.request("GET", "/config")) }.onFailure {
                 HsLog.w("config alınamadı", it)
                 reportError("config_failed", "app yapılandırması alınamadı", it)
             }
@@ -165,6 +174,18 @@ object HeroSignal {
             }
             queue?.flush()
         }
+    }
+
+    /**
+     * `/config` yanıtı: kimlik doğrulama zorunluluğu, app geneli in-app aralığı (kalıcı) ve dashboard'daki Android
+     * bildirim kanalları (`android_channels` → `NotificationChannel`; ADR-0019 §7, §12).
+     */
+    private fun applyConfig(config: JSONObject) {
+        identityVerificationRequired = config.optBoolean("identity_verification_required", false)
+        val interval = config.optJSONObject("in_app")?.optLong("min_interval_seconds", 0L)?.coerceAtLeast(0L) ?: 0L
+        storage?.inAppMinIntervalSeconds = interval
+        inApp?.globalMinIntervalSeconds = interval
+        appContext?.let { HsNotificationChannels.sync(it, config.optJSONArray("android_channels")) }
     }
 
     /** FCM token'ı alır; değiştiyse (veya kayıt yoksa) sunucuya kaydeder. */
@@ -438,7 +459,9 @@ object HeroSignal {
             checkPermissionChange()
         }
         override fun onStop(owner: LifecycleOwner) {
+            inApp?.onSessionEnd()
             if (sessionStartedAt == 0L) return
+            // Oturum süresi (`usage_seconds`, ADR-0019 §8) arka plana geçişte `POST /sessions { duration_seconds }` ile gider.
             val duration = ((System.currentTimeMillis() - sessionStartedAt) / 1000).toInt()
             sessionStartedAt = 0
             enqueue(JSONObject().put("type", "session_end").put("duration_seconds", duration).put("at", System.currentTimeMillis()))
@@ -631,6 +654,55 @@ object HeroSignal {
 
         val externalId: String? get() = storage?.externalId
         val id: String? get() = storage?.userId
+
+        // --- Tercihler (ADR-0019 §4): abonelik sahiplik kanıtıyla `GET/PUT /preferences` ---
+
+        /** Kanıt: etkileşim aboneliği + kayıtlı token'ın (veya kanonik adresin) özeti; kimlikli kullanıcıda identity_hash. */
+        private fun preferenceProof(): Triple<String, String?, String?> {
+            val store = storage ?: throw IllegalStateException("HeroSignal.initialize önce çağrılmalı")
+            val subId = engagementSubscriptionId() ?: throw IllegalStateException("Abonelik henüz kaydedilmedi")
+            return Triple(subId, ownershipToken(store, subId)?.let(HsOwnership::tokenHash), store.externalId?.let { store.userIdentityHash })
+        }
+
+        private fun getPreferencesBlocking(): HsPreferencesResult {
+            val api = api ?: throw IllegalStateException("HeroSignal.initialize önce çağrılmalı")
+            val (subId, tokenHash, identityHash) = preferenceProof()
+            val query = listOfNotNull(
+                "subscription_id=${URLEncoder.encode(subId, "UTF-8")}",
+                tokenHash?.let { "token_hash=$it" },
+                identityHash?.let { "identity_hash=${URLEncoder.encode(it, "UTF-8")}" },
+            ).joinToString("&")
+            return HsPreferencesParser.parseResult(api.request("GET", "/preferences?$query"))
+        }
+
+        private fun setPreferencesBlocking(preferences: List<HsPreferenceInput>): HsPreferencesResult {
+            HsPreferencesParser.validate(preferences)
+            val api = api ?: throw IllegalStateException("HeroSignal.initialize önce çağrılmalı")
+            val (subId, tokenHash, identityHash) = preferenceProof()
+            val body = JSONObject().put("subscription_id", subId).put("preferences", HsPreferencesParser.toJson(preferences))
+            tokenHash?.let { body.put("token_hash", it) }
+            identityHash?.let { body.put("identity_hash", it) }
+            return HsPreferencesParser.parseResult(api.request("PUT", "/preferences", body))
+        }
+
+        /** Kullanıcının kategori/kanal tercihleri ve app kategorileri. Abonelik yoksa `IllegalStateException`. */
+        suspend fun getPreferences(): HsPreferencesResult = withContext(Dispatchers.IO) { getPreferencesBlocking() }
+
+        /** Tercihleri yazar (1-100 kayıt; `channel` null = tüm kanallar); güncel listeyi döndürür. */
+        suspend fun setPreferences(preferences: List<HsPreferenceInput>): HsPreferencesResult = withContext(Dispatchers.IO) { setPreferencesBlocking(preferences) }
+
+        /** Java/köprü sürümü (geri çağrı arka plan iş parçacığında). */
+        @JvmStatic fun getPreferences(callback: HsCallback<HsPreferencesResult>) { scope.launch { callback.onResult(runCatching { getPreferencesBlocking() }) } }
+
+        /** Java/köprü sürümü; sonuç istenmiyorsa `callback` null verilir (hata günlüğe yazılır). */
+        @JvmStatic
+        fun setPreferences(preferences: List<HsPreferenceInput>, callback: HsCallback<HsPreferencesResult>?) {
+            scope.launch {
+                val result = runCatching { setPreferencesBlocking(preferences) }
+                result.exceptionOrNull()?.let { HsLog.w("tercihler kaydedilemedi", it) }
+                callback?.onResult(result)
+            }
+        }
 
         object pushSubscription {
             val id: String? get() = storage?.subscriptionId

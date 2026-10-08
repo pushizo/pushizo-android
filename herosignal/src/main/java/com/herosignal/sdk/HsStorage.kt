@@ -58,6 +58,16 @@ internal class HsStorage(context: Context, appId: String) {
         }
         set(value) = prefs.edit().putString(KEY_TAGS, JSONObject(value).toString()).apply()
 
+    /** Herhangi bir in-app mesajın bu cihazdaki son gösterimi (epoch ms); app geneli aralık için (ADR-0019 §7). */
+    var lastInAppImpressionAt: Long?
+        get() = prefs.getLong(KEY_IN_APP_LAST_IMPRESSION, 0L).takeIf { it > 0 }
+        set(value) = prefs.edit().putLong(KEY_IN_APP_LAST_IMPRESSION, value ?: 0L).apply()
+
+    /** Config'den gelen `in_app.min_interval_seconds`; config alınamazsa son bilinen değer kullanılır. */
+    var inAppMinIntervalSeconds: Long
+        get() = prefs.getLong(KEY_IN_APP_MIN_INTERVAL, 0L)
+        set(value) = prefs.edit().putLong(KEY_IN_APP_MIN_INTERVAL, value).apply()
+
     var queue: List<JSONObject>
         get() {
             val raw = prefs.getString(KEY_QUEUE, null) ?: return emptyList()
@@ -107,6 +117,8 @@ internal class HsStorage(context: Context, appId: String) {
         const val KEY_CONSENT = "consent"
         const val KEY_TAGS = "tags"
         const val KEY_QUEUE = "queue"
+        const val KEY_IN_APP_LAST_IMPRESSION = "in_app_last_impression_at"
+        const val KEY_IN_APP_MIN_INTERVAL = "in_app_min_interval_seconds"
         const val KEY_CONTACTS_PREFIX = "contacts_"
     }
 }

@@ -93,6 +93,100 @@ class HsInAppParserTest {
     }
 
     @Test
+    fun `tetik gruplari, session_duration, varyant ve yeni aksiyonlar ayristirilir`() {
+        val m = HsInAppParser.parseMessage(JSONObject("""
+            { "id": "iam_g", "priority": 3, "variant_id": "var_b",
+              "triggers": [{ "kind": "event", "name": "cart_viewed" }],
+              "trigger_groups": [
+                [{ "kind": "event", "name": "cart_viewed" }, { "kind": "trigger", "key": "cart_total", "op": "gt", "value": 100 }],
+                [{ "kind": "session_duration", "seconds": 30 }]
+              ],
+              "display": { "layout": "modal", "dismissible": true, "blocks": [
+                { "type": "button", "id": "allow", "text": "İzin ver", "action": { "type": "push_prompt" } },
+                { "type": "button", "id": "buy", "text": "Satın al", "action": { "type": "outcome", "name": "purchase", "value": 49.9 } },
+                { "type": "button", "id": "later", "text": "Sonra", "action": { "type": "outcome", "name": "remind_later" } },
+                { "type": "button", "id": "noname", "text": "Bozuk", "action": { "type": "outcome" } }
+              ] },
+              "remaining_impressions": 1, "min_interval_seconds": 0, "last_impression_at": null, "end_at": null }
+        """.trimIndent()))
+        assertEquals("var_b", m.variantId)
+        assertEquals(2, m.triggerGroups.size)
+        assertEquals(m.triggerGroups[0], m.triggers) // geriye uyum: ilk grup
+        assertEquals(listOf(HsInAppTrigger.SessionDuration(30)), m.triggerGroups[1])
+        val buttons = m.display.buttons
+        assertEquals(listOf("allow", "buy", "later"), buttons.map { it.id }) // adsız outcome düğmesi atlanır
+        assertEquals(HsInAppAction.PushPrompt, buttons[0].action)
+        assertEquals(HsInAppAction.Outcome("purchase", 49.9), buttons[1].action)
+        assertEquals(HsInAppAction.Outcome("remind_later", null), buttons[2].action)
+
+        // trigger_groups yok/boş → triggers tek grup; variant_id yok → null.
+        val legacy = HsInAppParser.parseMessage(JSONObject("""
+            { "id": "iam_l", "priority": 0, "triggers": [{ "kind": "screen", "name": "home" }], "trigger_groups": [], "variant_id": null,
+              "display": { "layout": "modal", "dismissible": true, "blocks": [] }, "remaining_impressions": 1 }
+        """.trimIndent()))
+        assertEquals(listOf(listOf(HsInAppTrigger.Screen("home"))), legacy.triggerGroups)
+        assertNull(legacy.variantId)
+        assertEquals(listOf(emptyList<HsInAppTrigger>()), HsInAppParser.parseTriggerGroups(null, org.json.JSONArray()))
+    }
+
+    @Test
+    fun `tetik gruplari VEYA, grup ici VE olarak degerlendirilir`() {
+        val groups = HsInAppParser.parseTriggerGroups(org.json.JSONArray("""
+            [
+              [{ "kind": "event", "name": "cart_viewed" }, { "kind": "trigger", "key": "cart_total", "op": "gt", "value": 100 }],
+              [{ "kind": "screen", "name": "checkout" }]
+            ]
+        """.trimIndent()), org.json.JSONArray())
+        val cheap = HsInAppState(triggers = mapOf("cart_total" to "50"))
+        val rich = HsInAppState(triggers = mapOf("cart_total" to "150"))
+        assertFalse(HsInAppRules.matchesAny(groups, HsInAppCause.Event("cart_viewed"), cheap)) // ilk grup VE: koşul sağlanmadı
+        assertTrue(HsInAppRules.matchesAny(groups, HsInAppCause.Event("cart_viewed"), rich))
+        assertTrue(HsInAppRules.matchesAny(groups, HsInAppCause.Screen("checkout"), HsInAppState(screen = "checkout"))) // ikinci grup
+        assertFalse(HsInAppRules.matchesAny(groups, HsInAppCause.Screen("home"), HsInAppState(screen = "home")))
+        // Boş grup listesi tetiksiz mesaj gibi: yalnızca oturum başı.
+        assertTrue(HsInAppRules.matchesAny(emptyList(), HsInAppCause.SessionStart, HsInAppState()))
+        assertFalse(HsInAppRules.matchesAny(emptyList(), HsInAppCause.Event("x"), HsInAppState()))
+    }
+
+    @Test
+    fun `session_duration zamanlayiciyla ateslenir, sonraki degerlendirmelerde kosul olarak kalir`() {
+        val duration = listOf(HsInAppTrigger.SessionDuration(30))
+        assertFalse(HsInAppRules.matches(duration, HsInAppCause.SessionDuration, HsInAppState(sessionSeconds = 29)))
+        assertTrue(HsInAppRules.matches(duration, HsInAppCause.SessionDuration, HsInAppState(sessionSeconds = 30)))
+        assertFalse(HsInAppRules.matches(duration, HsInAppCause.SessionStart, HsInAppState(sessionSeconds = 0)))
+        // Olayla birlikte: olay ateşler, süre koşulu sağlanmalı.
+        val combined = duration + HsInAppTrigger.Event("cart_viewed")
+        assertFalse(HsInAppRules.matches(combined, HsInAppCause.Event("cart_viewed"), HsInAppState(sessionSeconds = 10)))
+        assertTrue(HsInAppRules.matches(combined, HsInAppCause.Event("cart_viewed"), HsInAppState(sessionSeconds = 45)))
+        assertFalse(HsInAppRules.matches(combined, HsInAppCause.SessionDuration, HsInAppState(sessionSeconds = 45))) // olay anı değil
+
+        val messages = listOf(
+            HsInAppParser.parseMessage(JSONObject("""{ "id": "a", "trigger_groups": [[{ "kind": "session_duration", "seconds": 60 }], [{ "kind": "session_duration", "seconds": 20 }]], "display": { "blocks": [] } }""")),
+            HsInAppParser.parseMessage(JSONObject("""{ "id": "b", "triggers": [{ "kind": "event", "name": "x" }], "display": { "blocks": [] } }""")),
+        )
+        assertEquals(20L, HsInAppRules.nextSessionDurationSeconds(messages, 0))
+        assertEquals(60L, HsInAppRules.nextSessionDurationSeconds(messages, 20))
+        assertNull(HsInAppRules.nextSessionDurationSeconds(messages, 60))
+        assertNull(HsInAppRules.nextSessionDurationSeconds(listOf(messages[1]), 0))
+    }
+
+    @Test
+    fun `app geneli gosterim araligi tum mesajlari kapsar`() {
+        assertTrue(HsInAppRules.globalIntervalAllows(0, 5_000, 6_000))
+        assertTrue(HsInAppRules.globalIntervalAllows(60, null, 6_000))
+        assertFalse(HsInAppRules.globalIntervalAllows(60, 100_000, 159_999))
+        assertTrue(HsInAppRules.globalIntervalAllows(60, 100_000, 160_000))
+        val m = HsInAppParser.parseMessage(JSONObject("""
+            { "id": "iam_x", "priority": 1, "triggers": [{ "kind": "event", "name": "e" }],
+              "display": { "layout": "modal", "dismissible": true, "blocks": [] }, "remaining_impressions": 5, "min_interval_seconds": 0 }
+        """.trimIndent()))
+        val cause = HsInAppCause.Event("e")
+        assertNull(HsInAppRules.select(listOf(m), cause, HsInAppState(), emptyMap(), 150_000, globalMinIntervalSeconds = 60, lastImpressionAt = 100_000))
+        assertEquals("iam_x", HsInAppRules.select(listOf(m), cause, HsInAppState(), emptyMap(), 160_000, globalMinIntervalSeconds = 60, lastImpressionAt = 100_000)?.id)
+        assertEquals("iam_x", HsInAppRules.select(listOf(m), cause, HsInAppState(), emptyMap(), 150_000, globalMinIntervalSeconds = 0, lastImpressionAt = 100_000)?.id)
+    }
+
+    @Test
     fun `ISO zaman ayristirma`() {
         assertEquals(0L, HsIsoTime.parse("1970-01-01T00:00:00Z"))
         assertEquals(1_500L, HsIsoTime.parse("1970-01-01T00:00:01.5Z"))

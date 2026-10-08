@@ -1,15 +1,21 @@
 package com.herosignal.sdk
 
-/** Değerlendirmeyi başlatan durum: anlık (oturum başı, olay) veya durum değişimi (ekran, trigger). */
+/** Değerlendirmeyi başlatan durum: anlık (oturum başı, olay, süre zamanlayıcısı) veya durum değişimi (ekran, trigger). */
 internal sealed class HsInAppCause {
     object SessionStart : HsInAppCause()
     data class Event(val name: String) : HsInAppCause()
     data class Screen(val name: String) : HsInAppCause()
     data class TriggerChange(val keys: Set<String>) : HsInAppCause()
+    /** Oturum süresi zamanlayıcısı doldu (veya bir mesaj kapandı); `session_duration` tetikleri yeniden değerlendirilir. */
+    object SessionDuration : HsInAppCause()
 }
 
-/** Değerlendirme anındaki durum: geçerli ekran ve `addTrigger` değerleri. */
-internal data class HsInAppState(val screen: String? = null, val triggers: Map<String, String> = emptyMap())
+/** Değerlendirme anındaki durum: geçerli ekran, `addTrigger` değerleri ve ön plan oturumunun süresi (saniye). */
+internal data class HsInAppState(
+    val screen: String? = null,
+    val triggers: Map<String, String> = emptyMap(),
+    val sessionSeconds: Long = 0,
+)
 
 /** Son listeden bu yana yereldeki gösterimler ve etkileşim (tıklama/kapatma); sunucu bir sonraki yenilemede günceller. */
 internal data class HsLocalImpressions(val count: Int = 0, val lastAt: Long? = null, val interacted: Boolean = false)
@@ -17,16 +23,26 @@ internal data class HsLocalImpressions(val count: Int = 0, val lastAt: Long? = n
 /**
  * In-app tetik ve sıklık kuralları (saf mantık; ortak vektörler `sdk/testdata/messaging-vectors.json`).
  *
- * - Mesaj yalnızca tetiklerinden birini "ateşleyen" bir değerlendirmede aday olur: oturum başı → `session_start`,
- *   olay → aynı adlı `event`, ekran → yeni ekranla eşleşen `screen`, trigger değişimi → değişen anahtarlı `trigger`.
- *   Tetiksiz mesaj oturum başında adaydır.
- * - Aday mesajın tüm koşulları sağlanmalıdır: `session_start` oturum boyunca sağlanır; `event` yalnızca o olay
- *   anında; `screen` geçerli ekran; `trigger` karşılaştırması (`eq|neq|exists|gt|lt`). Tanınmayan tür hiç sağlanmaz.
+ * - Mesajın tetik grupları VEYA ile bağlıdır: herhangi bir grup sağlanırsa mesaj adaydır ([matchesAny]). Grup içinde
+ *   ([matches]) mesaj yalnızca tetiklerinden birini "ateşleyen" bir değerlendirmede aday olur: oturum başı →
+ *   `session_start`, olay → aynı adlı `event`, ekran → yeni ekranla eşleşen `screen`, trigger değişimi → değişen anahtarlı
+ *   `trigger`, süre zamanlayıcısı → süresi dolmuş `session_duration`. Tetiksiz grup oturum başında adaydır.
+ * - Aday grubun tüm koşulları sağlanmalıdır: `session_start` oturum boyunca sağlanır; `event` yalnızca o olay anında;
+ *   `screen` geçerli ekran; `trigger` karşılaştırması (`eq|neq|exists|gt|lt`); `session_duration` oturum süresi
+ *   eşiğe ulaştıysa. Tanınmayan tür hiç sağlanmaz.
  * - Karşılaştırma: iki taraf da ondalık sayıysa (`-12.5`, bilimsel gösterim hariç) sayısal, değilse metin (büyük/küçük
  *   harf duyarlı). `neq` anahtar yoksa sağlanır; `gt`/`lt` sayısal olmayan değerde sağlanmaz.
+ * - App geneli aralık: son gösterimden (herhangi bir mesaj) bu yana `in_app.min_interval_seconds` geçmediyse hiçbir
+ *   mesaj gösterilmez ([globalIntervalAllows]).
  */
 internal object HsInAppRules {
     private val DECIMAL = Regex("^-?\\d+(\\.\\d+)?$")
+
+    /** VEYA grupları: herhangi biri sağlanırsa true. Boş liste tetiksiz mesaj gibi (yalnızca oturum başı) davranır. */
+    fun matchesAny(groups: List<List<HsInAppTrigger>>, cause: HsInAppCause, state: HsInAppState): Boolean {
+        if (groups.isEmpty()) return matches(emptyList(), cause, state)
+        return groups.any { matches(it, cause, state) }
+    }
 
     fun matches(triggers: List<HsInAppTrigger>, cause: HsInAppCause, state: HsInAppState): Boolean {
         if (triggers.isEmpty()) return cause is HsInAppCause.SessionStart
@@ -39,6 +55,7 @@ internal object HsInAppRules {
         is HsInAppTrigger.Event -> cause is HsInAppCause.Event && cause.name == t.name
         is HsInAppTrigger.Screen -> cause is HsInAppCause.Screen && cause.name == t.name && state.screen == t.name
         is HsInAppTrigger.Condition -> cause is HsInAppCause.TriggerChange && t.key in cause.keys
+        is HsInAppTrigger.SessionDuration -> cause is HsInAppCause.SessionDuration && state.sessionSeconds >= t.seconds
         is HsInAppTrigger.Unsupported -> false
     }
 
@@ -47,6 +64,7 @@ internal object HsInAppRules {
         is HsInAppTrigger.Event -> cause is HsInAppCause.Event && cause.name == t.name
         is HsInAppTrigger.Screen -> state.screen == t.name
         is HsInAppTrigger.Condition -> conditionHolds(t, state.triggers)
+        is HsInAppTrigger.SessionDuration -> state.sessionSeconds >= t.seconds
         is HsInAppTrigger.Unsupported -> false
     }
 
@@ -100,17 +118,39 @@ internal object HsInAppRules {
         return true
     }
 
-    /** Eşleşen ve gösterilebilir mesajlar arasından en yüksek öncelikli (eşitlikte liste sırası). */
+    /** App geneli aralık (`in_app.min_interval_seconds`): son gösterimden bu yana yeterli süre geçtiyse true. */
+    fun globalIntervalAllows(minIntervalSeconds: Long, lastImpressionAt: Long?, now: Long): Boolean =
+        minIntervalSeconds <= 0 || lastImpressionAt == null || now - lastImpressionAt >= minIntervalSeconds * 1000
+
+    /**
+     * Mesajlardaki `session_duration` eşikleri arasından geçerli oturum süresini aşan en küçüğü (saniye); yoksa null.
+     * Zamanlayıcı bu eşikte [HsInAppCause.SessionDuration] ile yeniden değerlendirme yapar.
+     */
+    fun nextSessionDurationSeconds(messages: List<HsInAppMessage>, sessionSeconds: Long): Long? =
+        messages.asSequence()
+            .flatMap { m -> m.triggerGroups.asSequence().flatten() }
+            .filterIsInstance<HsInAppTrigger.SessionDuration>()
+            .map { it.seconds }
+            .filter { it > sessionSeconds }
+            .minOrNull()
+
+    /**
+     * Eşleşen ve gösterilebilir mesajlar arasından en yüksek öncelikli (eşitlikte liste sırası). App geneli aralık
+     * ([globalMinIntervalSeconds], [lastImpressionAt]: herhangi bir mesajın son gösterimi) dolmadıysa null.
+     */
     fun select(
         messages: List<HsInAppMessage>,
         cause: HsInAppCause,
         state: HsInAppState,
         locals: Map<String, HsLocalImpressions>,
         now: Long,
+        globalMinIntervalSeconds: Long = 0,
+        lastImpressionAt: Long? = null,
     ): HsInAppMessage? {
+        if (!globalIntervalAllows(globalMinIntervalSeconds, lastImpressionAt, now)) return null
         var best: HsInAppMessage? = null
         for (m in messages) {
-            if (!matches(m.triggers, cause, state)) continue
+            if (!matchesAny(m.triggerGroups, cause, state)) continue
             if (!canDisplay(m, locals[m.id] ?: HsLocalImpressions(), now)) continue
             if (best == null || m.priority > best.priority) best = m
         }

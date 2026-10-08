@@ -1,5 +1,7 @@
 package com.herosignal.sdk
 
+import android.app.Activity
+import android.app.Application
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -58,7 +60,8 @@ class HsInAppHandle internal constructor(private val controller: HsInAppControll
 
 /**
  * In-app akışı: listeyi oturum başında ve en fazla 5 dakikada bir yeniler, tetikleri değerlendirir ([HsInAppRules]),
- * aynı anda tek mesaj gösterir, gösterim/tıklama/kapatma olaylarını çevrimdışı kuyruğa yazar ve aksiyonları uygular.
+ * `session_duration` eşikleri için zamanlayıcı kurar, app geneli gösterim aralığını uygular, aynı anda tek mesaj
+ * gösterir, gösterim/tıklama/kapatma olaylarını (varyant kimliğiyle) çevrimdışı kuyruğa yazar ve aksiyonları uygular.
  */
 internal class HsInAppController(private val host: Host) {
     interface Host {
@@ -68,10 +71,16 @@ internal class HsInAppController(private val host: Host) {
         fun request(method: String, path: String, body: JSONObject? = null): JSONObject
         fun enqueue(op: JSONObject)
         fun addTags(tags: Map<String, String>)
+        /** `outcome` aksiyonu: olay SDK'nın olay API'siyle gönderilir. */
+        fun sendEvent(name: String, value: Double?)
+        /** `push_prompt` aksiyonu: yerel bildirim izni istemi (Activity yoksa istenemez). */
+        fun requestPushPermission(activity: Activity?)
         fun runInBackground(block: () -> Unit)
         fun reportError(code: String, message: String, error: Throwable?)
         /** Kuyrukta henüz gönderilmemiş in-app olayı (gösterim/tıklama/kapatma) bulunan mesaj kimlikleri. */
         fun pendingInAppMessageIds(): Set<String>
+        /** Herhangi bir in-app mesajın bu cihazdaki son gösterim zamanı (kalıcı; app geneli aralık için). */
+        var lastInAppImpressionAt: Long?
     }
 
     private val lock = Any()
@@ -84,9 +93,13 @@ internal class HsInAppController(private val host: Host) {
     private var screen: String? = null
     private val triggers = LinkedHashMap<String, String>()
     private var sessionStartAt = 0L
+    /** Ön plan oturumunun başlangıcı (`session_duration` için); arka planda 0. */
+    private var sessionBeganAt = 0L
     private var current: HsInAppHandle? = null
 
     @Volatile var paused = false
+    /** `in_app.min_interval_seconds` (config): herhangi bir gösterimden sonra bu süre dolmadan yeni mesaj gösterilmez. */
+    @Volatile var globalMinIntervalSeconds = 0L
     @Volatile private var customRenderer: HsInAppRenderer? = null
     private var defaultRenderer: HsInAppDialogRenderer? = null
     val clickListeners = CopyOnWriteArraySet<(HsInAppClickEvent) -> Unit>()
@@ -94,14 +107,16 @@ internal class HsInAppController(private val host: Host) {
 
     fun setRenderer(renderer: HsInAppRenderer?) { customRenderer = renderer }
 
-    private fun renderer(): HsInAppRenderer? {
-        customRenderer?.let { return it }
-        val ctx = host.context?.applicationContext as? android.app.Application ?: return null
+    private fun renderer(): HsInAppRenderer? = customRenderer ?: defaultRenderer()
+
+    /** Varsayılan çizim katmanı; özel çizimde de Activity takibi (aksiyon intent'leri, izin istemi) için kurulur. */
+    private fun defaultRenderer(): HsInAppDialogRenderer? {
+        val ctx = host.context?.applicationContext as? Application ?: return null
         return defaultRenderer ?: HsInAppDialogRenderer(ctx).also { defaultRenderer = it }
     }
 
     /** Uygulama başlarken çağrılır: Activity takibi için varsayılan çizim katmanı erkenden kurulur. */
-    fun attach() { main.post { if (customRenderer == null) renderer() } }
+    fun attach() { main.post { defaultRenderer() } }
 
     // --- Durum ---
 
@@ -133,8 +148,42 @@ internal class HsInAppController(private val host: Host) {
     // --- Liste ---
 
     fun onSessionStart() {
-        synchronized(lock) { sessionStartAt = System.currentTimeMillis() }
+        synchronized(lock) {
+            sessionStartAt = System.currentTimeMillis()
+            sessionBeganAt = sessionStartAt
+        }
         refresh(minAgeMs = SESSION_REFRESH_MIN_AGE_MS)
+        scheduleSessionDurationTimer()
+    }
+
+    /** Uygulama arka plana geçti: oturum süresi sıfırlanır, `session_duration` zamanlayıcısı iptal edilir. */
+    fun onSessionEnd() {
+        synchronized(lock) {
+            sessionStartAt = 0
+            sessionBeganAt = 0
+        }
+        main.removeCallbacks(sessionDurationRunnable)
+    }
+
+    /** Geçerli ön plan oturumunun süresi (saniye); arka planda 0. */
+    private fun sessionSeconds(): Long {
+        val began = synchronized(lock) { sessionBeganAt }
+        return if (began == 0L) 0 else (System.currentTimeMillis() - began) / 1000
+    }
+
+    private val sessionDurationRunnable = Runnable {
+        evaluate(HsInAppCause.SessionDuration)
+        scheduleSessionDurationTimer()
+    }
+
+    /** Mesajlardaki bir sonraki `session_duration` eşiği için ana iş parçacığında zamanlayıcı kurar (yoksa iptal). */
+    private fun scheduleSessionDurationTimer() {
+        main.removeCallbacks(sessionDurationRunnable)
+        val (began, list) = synchronized(lock) { sessionBeganAt to messages }
+        if (began == 0L) return
+        val next = HsInAppRules.nextSessionDurationSeconds(list, (System.currentTimeMillis() - began) / 1000) ?: return
+        val delay = began + next * 1000 - System.currentTimeMillis()
+        main.postDelayed(sessionDurationRunnable, maxOf(delay, 0L))
     }
 
     /** Abonelik ilk kez oluştuğunda veya kullanıcı değiştiğinde (login/logout) liste hemen yenilenir. */
@@ -157,6 +206,7 @@ internal class HsInAppController(private val host: Host) {
                     locals.keys.retainAll(pending)
                 }
                 HsLog.d("in-app listesi yenilendi: ${list.size} mesaj")
+                main.post { scheduleSessionDurationTimer() }
             } catch (e: Exception) {
                 HsLog.w("in-app listesi alınamadı", e)
                 if (e !is HsApiException || !e.retryable) host.reportError("in_app_fetch_failed", "in-app listesi alınamadı", e)
@@ -181,9 +231,13 @@ internal class HsInAppController(private val host: Host) {
     private fun evaluate(cause: HsInAppCause) {
         if (System.currentTimeMillis() - fetchedAt > REFRESH_INTERVAL_MS) refresh(minAgeMs = REFRESH_INTERVAL_MS)
         if (paused) return
+        val state = HsInAppState(screen = synchronized(lock) { screen }, triggers = getTriggers(), sessionSeconds = sessionSeconds())
         val selected = synchronized(lock) {
             if (current != null) return
-            HsInAppRules.select(messages, cause, HsInAppState(screen, HashMap(triggers)), HashMap(locals), System.currentTimeMillis())
+            HsInAppRules.select(
+                messages, cause, state, HashMap(locals), System.currentTimeMillis(),
+                globalMinIntervalSeconds, host.lastInAppImpressionAt,
+            )
         } ?: return
         main.post { present(selected) }
     }
@@ -207,11 +261,14 @@ internal class HsInAppController(private val host: Host) {
 
     fun onDisplayed(handle: HsInAppHandle) {
         val id = handle.message.id
+        val now = System.currentTimeMillis()
         synchronized(lock) {
             val prev = locals[id] ?: HsLocalImpressions()
-            locals[id] = prev.copy(count = prev.count + 1, lastAt = System.currentTimeMillis())
+            locals[id] = prev.copy(count = prev.count + 1, lastAt = now)
         }
-        record(id, "impression", null)
+        // App geneli aralık herhangi bir mesajın son gösteriminden ölçülür; uygulama yeniden başlasa da korunur.
+        host.lastInAppImpressionAt = now
+        record(handle.message, "impression", null)
         main.post { lifecycleListeners.forEach { it.onDidDisplay(HsInAppLifecycleEvent(handle.message)) } }
     }
 
@@ -223,7 +280,7 @@ internal class HsInAppController(private val host: Host) {
     fun onButtonClicked(handle: HsInAppHandle, button: HsInAppBlock.Button) {
         val message = handle.message
         markInteracted(message.id)
-        record(message.id, "click", button.id)
+        record(message, "click", button.id)
         val url = when (val a = button.action) {
             is HsInAppAction.Url -> a.url
             is HsInAppAction.Deeplink -> a.url
@@ -235,6 +292,8 @@ internal class HsInAppController(private val host: Host) {
                 is HsInAppAction.Url -> open(a.url, inApp = false)
                 is HsInAppAction.Deeplink -> open(a.url, inApp = true)
                 is HsInAppAction.Tags -> if (a.tags.isNotEmpty()) host.addTags(a.tags)
+                is HsInAppAction.Outcome -> host.sendEvent(a.name, a.value)
+                HsInAppAction.PushPrompt -> host.requestPushPermission(defaultRenderer?.currentActivity)
                 HsInAppAction.Dismiss -> Unit
             }
             close(handle)
@@ -243,7 +302,7 @@ internal class HsInAppController(private val host: Host) {
 
     fun onDismissed(handle: HsInAppHandle) {
         markInteracted(handle.message.id)
-        record(handle.message.id, "dismiss", null)
+        record(handle.message, "dismiss", null)
         main.post { close(handle) }
     }
 
@@ -259,12 +318,18 @@ internal class HsInAppController(private val host: Host) {
 
     fun onClosed(handle: HsInAppHandle) {
         synchronized(lock) { if (current === handle) current = null }
-        main.post { lifecycleListeners.forEach { it.onDidDismiss(HsInAppLifecycleEvent(handle.message)) } }
+        main.post {
+            lifecycleListeners.forEach { it.onDidDismiss(HsInAppLifecycleEvent(handle.message)) }
+            // Mesaj açıkken eşiği dolan `session_duration` tetikleri (zamanlayıcı o anda atlandı) yeniden değerlendirilir.
+            evaluate(HsInAppCause.SessionDuration)
+        }
     }
 
-    private fun record(messageId: String, type: String, buttonId: String?) {
-        val op = JSONObject().put("type", "in_app_event").put("message_id", messageId).put("event", type).put("at", System.currentTimeMillis())
+    private fun record(message: HsInAppMessage, type: String, buttonId: String?) {
+        val op = JSONObject().put("type", "in_app_event").put("message_id", message.id).put("event", type).put("at", System.currentTimeMillis())
         buttonId?.let { op.put("button_id", it) }
+        // Sunucunun seçtiği A/B varyantı olayla birlikte geri gönderilir.
+        message.variantId?.let { op.put("variant_id", it) }
         host.enqueue(op)
     }
 
@@ -289,6 +354,7 @@ internal class HsInAppController(private val host: Host) {
         val subId = host.subscriptionId() ?: return
         val body = JSONObject().put("subscription_id", subId).put("type", op.getString("event"))
         op.optString("button_id").takeIf { it.isNotBlank() }?.let { body.put("button_id", it) }
+        op.optString("variant_id").takeIf { it.isNotBlank() }?.let { body.put("variant_id", it) }
         host.request("POST", "/in-app/${URLEncoder.encode(op.getString("message_id"), "UTF-8")}/events", body)
     }
 
