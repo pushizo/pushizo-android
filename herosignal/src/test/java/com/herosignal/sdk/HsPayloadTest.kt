@@ -75,6 +75,50 @@ class HsPayloadTest {
     }
 
     @Test
+    fun `ikon, vurgu rengi, gorunurluk ve grup anahtarlari ayristirilir`() {
+        val data = mapOf(
+            "hs_delivery_id" to "dlv_5",
+            "hs_title" to "T",
+            "hs_small_icon" to "ic_stat_bell",
+            "hs_large_icon" to "https://cdn.example.com/avatar.png",
+            "hs_accent" to "FF0A84FF",
+            "hs_visibility" to "-1",
+            "hs_group" to "orders",
+        )
+        val n = HsNotification.fromFcm(data, null, null, null, null, null)
+        assertEquals("ic_stat_bell", n.smallIcon)
+        assertEquals("https://cdn.example.com/avatar.png", n.largeIcon)
+        assertEquals(0xFF0A84FF.toInt(), n.accentColor)
+        assertEquals(-1, n.visibility)
+        assertEquals("orders", n.groupKey)
+        assertEquals("dlv_5".hashCode(), n.androidNotificationId)
+        assertEquals(true, HsNotification.isRemoteIcon(n.largeIcon!!))
+        assertEquals(false, HsNotification.isRemoteIcon("ic_launcher"))
+        // hs_* anahtarları müşteri verisine karışmaz
+        assertEquals(emptyMap<String, String>(), n.data)
+        // collapse kimliği varsa sistem kimliği ondan türetilir
+        assertEquals("c1".hashCode(), HsNotification.fromFcm(data + ("hs_collapse" to "c1"), null, null, null, null, null).androidNotificationId)
+        assertNull(HsNotification.fromFcm(mapOf("hs_title" to "T"), null, null, null, null, null).androidNotificationId)
+    }
+
+    @Test
+    fun `vurgu rengi ve gorunurluk dogrulanir`() {
+        assertEquals(0xFF112233.toInt(), HsNotification.parseAccentColor("FF112233"))
+        assertEquals(0x80112233.toInt(), HsNotification.parseAccentColor("#80112233"))
+        assertEquals(0xFFAABBCC.toInt(), HsNotification.parseAccentColor("aabbcc"))
+        assertNull(HsNotification.parseAccentColor("GG112233"))
+        assertNull(HsNotification.parseAccentColor("12345"))
+        assertNull(HsNotification.parseAccentColor(""))
+        assertNull(HsNotification.parseAccentColor(null))
+        assertEquals(1, HsNotification.parseVisibility("1"))
+        assertEquals(0, HsNotification.parseVisibility("0"))
+        assertEquals(-1, HsNotification.parseVisibility("-1"))
+        assertNull(HsNotification.parseVisibility("2"))
+        assertNull(HsNotification.parseVisibility("public"))
+        assertNull(HsNotification.parseVisibility(null))
+    }
+
+    @Test
     fun `bozuk aksiyon json'u bos listeye duser`() {
         val n = HsNotification.fromFcm(mapOf("hs_actions" to "{bozuk"), "T", null, null, null, null)
         assertEquals(0, n.actions.size)

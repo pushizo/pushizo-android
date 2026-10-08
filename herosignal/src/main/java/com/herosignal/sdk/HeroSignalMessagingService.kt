@@ -5,11 +5,14 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.ContentResolver
 import android.content.Context
+import android.graphics.Bitmap
 import android.media.AudioAttributes
 import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.google.firebase.messaging.FirebaseMessagingService
@@ -55,7 +58,7 @@ class HeroSignalMessagingService : FirebaseMessagingService() {
 
     companion object {
         /** Grup özet bildirimleri için sabit kimlik tabanı. */
-        private const val GROUP_SUMMARY_TAG = "hs_group_summary"
+        internal const val GROUP_SUMMARY_TAG = "hs_group_summary"
 
         fun show(context: Context, n: HsNotification) {
             val channelId = n.channelId ?: HeroSignal.options.defaultChannelId
@@ -63,8 +66,8 @@ class HeroSignalMessagingService : FirebaseMessagingService() {
             ensureChannel(context, channelId, soundUri)
             // collapse kimliği aynı olan bildirimler birbirinin yerine geçer (tag + id).
             val tag = n.collapseKey
-            val notificationId = (n.collapseKey ?: n.deliveryId ?: System.currentTimeMillis().toString()).hashCode()
-            val iconRes = smallIcon(context)
+            val notificationId = n.androidNotificationId ?: System.currentTimeMillis().toString().hashCode()
+            val iconRes = smallIcon(context, n.smallIcon)
 
             val builder = NotificationCompat.Builder(context, channelId)
                 .setSmallIcon(iconRes)
@@ -74,7 +77,11 @@ class HeroSignalMessagingService : FirebaseMessagingService() {
                 .setAutoCancel(true)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setContentIntent(NotificationOpenActivity.pendingIntent(context, n, null, tag, notificationId, notificationId))
+                // Tepsi yönetimi (clearAll/remove…) yalnızca bu işaretli bildirimlere dokunur.
+                .addExtras(HsNotificationTray.markerExtras())
             n.subtitle?.let { builder.setSubText(it) }
+            n.accentColor?.let { builder.setColor(it) }
+            n.visibility?.let { builder.setVisibility(it) }
             n.deliveryId?.let { builder.setDeleteIntent(NotificationDismissedReceiver.pendingIntent(context, it, notificationId)) }
             n.groupKey?.let { builder.setGroup(it) }
             // Android 8+ seste kanal ayarı geçerlidir; önceki sürümlerde bildirime yazılır.
@@ -85,6 +92,8 @@ class HeroSignalMessagingService : FirebaseMessagingService() {
                     builder.setLargeIcon(bitmap).setStyle(NotificationCompat.BigPictureStyle().bigPicture(bitmap).bigLargeIcon(null as android.graphics.Bitmap?))
                 }
             }
+            // Açık büyük ikon (`hs_large_icon`) büyük resmin daraltılmış önizlemesinin yerine geçer.
+            n.largeIcon?.let { largeIcon(context, it) }?.let { builder.setLargeIcon(it) }
             n.actions.take(3).forEachIndexed { index, action ->
                 builder.addAction(0, action.title, NotificationOpenActivity.pendingIntent(context, n, action.id, tag, notificationId, notificationId * 31 + index + 1))
             }
@@ -109,15 +118,34 @@ class HeroSignalMessagingService : FirebaseMessagingService() {
                 .setGroupSummary(true)
                 .setAutoCancel(true)
                 .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
+                .addExtras(HsNotificationTray.markerExtras())
                 .build()
             manager.notify(GROUP_SUMMARY_TAG, group.hashCode(), summary)
         }
 
-        private fun smallIcon(context: Context): Int =
+        /** `hs_small_icon` drawable adı; bulunamazsa manifest meta-data veya SDK varsayılan ikonu. */
+        private fun smallIcon(context: Context, name: String?): Int =
+            name?.let { resourceId(context, it, "drawable") }
+                ?: defaultSmallIcon(context)
+
+        private fun defaultSmallIcon(context: Context): Int =
             runCatching {
                 context.packageManager.getApplicationInfo(context.packageName, android.content.pm.PackageManager.GET_META_DATA)
                     .metaData?.getInt("com.herosignal.sdk.default_notification_icon", 0)?.takeIf { it != 0 }
             }.getOrNull() ?: R.drawable.hs_ic_notification
+
+        /** `hs_large_icon`: http(s) URL indirilir (HsImages); değilse drawable, ardından mipmap kaynağı aranır. */
+        private fun largeIcon(context: Context, value: String): Bitmap? {
+            if (HsNotification.isRemoteIcon(value)) return HsImages.download(value)
+            val resId = resourceId(context, value, "drawable") ?: resourceId(context, value, "mipmap") ?: return null
+            return runCatching { ContextCompat.getDrawable(context, resId)?.toBitmap() }
+                .onFailure { HsLog.d("büyük ikon kaynağı çizilemedi") }
+                .getOrNull()
+        }
+
+        /** Kaynak adını (uzantısız) kimliğe çevirir; bulunamazsa null. */
+        private fun resourceId(context: Context, name: String, type: String): Int? =
+            context.resources.getIdentifier(name.substringBeforeLast('.'), type, context.packageName).takeIf { it != 0 }
 
         /** `hs_sound`: "default" → sistem sesi; aksi halde `res/raw/<ad>` (uzantısız) aranır. */
         private fun soundUri(context: Context, sound: String?): Uri? {

@@ -83,6 +83,7 @@ class NotificationOpenActivity : Activity() {
                 channelId = null,
                 actions = emptyList(),
                 data = data,
+                androidNotificationId = if (intent.hasExtra(EXTRA_NOTIFICATION_ID)) intent.getIntExtra(EXTRA_NOTIFICATION_ID, 0) else null,
             )
         }
 

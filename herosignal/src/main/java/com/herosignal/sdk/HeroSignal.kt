@@ -671,6 +671,24 @@ object HeroSignal {
         @JvmStatic fun removeClickListener(listener: (HsClickEvent) -> Unit) { clickListeners.remove(listener) }
         @JvmStatic fun addForegroundLifecycleListener(listener: (HsForegroundEvent) -> Unit) { foregroundListeners.add(listener) }
         @JvmStatic fun removeForegroundLifecycleListener(listener: (HsForegroundEvent) -> Unit) { foregroundListeners.remove(listener) }
+
+        /** SDK'nın gösterdiği tüm bildirimleri (grup özetleri dahil) tepsiden kaldırır; uygulamanın kendi bildirimlerine dokunmaz. */
+        @JvmStatic fun clearAll() {
+            val ctx = appContext ?: return HsLog.w("clearAll: SDK başlatılmadı")
+            HsNotificationTray.clearAll(ctx)
+        }
+
+        /** Sistem bildirim kimliği ([HsNotification.androidNotificationId]) eşleşen SDK bildirimini kaldırır. */
+        @JvmStatic fun removeNotification(id: Int) {
+            val ctx = appContext ?: return HsLog.w("removeNotification: SDK başlatılmadı")
+            HsNotificationTray.removeNotification(ctx, id)
+        }
+
+        /** `hs_group` anahtarı eşleşen SDK bildirimlerini ve grup özetini kaldırır. */
+        @JvmStatic fun removeGroupedNotifications(group: String) {
+            val ctx = appContext ?: return HsLog.w("removeGroupedNotifications: SDK başlatılmadı")
+            HsNotificationTray.removeGroupedNotifications(ctx, group)
+        }
     }
 
     object Session {

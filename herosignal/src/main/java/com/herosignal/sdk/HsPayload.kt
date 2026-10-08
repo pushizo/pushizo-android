@@ -26,6 +26,19 @@ data class HsNotification(
     val groupKey: String? = null,
     /** Sessiz (content_available) mesaj: gösterilmez, yalnızca `received` bildirilir. */
     val silent: Boolean = false,
+    /** Küçük ikon drawable kaynak adı (`hs_small_icon`); bulunamazsa varsayılan ikon kullanılır. */
+    val smallIcon: String? = null,
+    /** Büyük ikon (`hs_large_icon`): http(s) URL ise indirilir, değilse drawable/mipmap kaynak adıdır. */
+    val largeIcon: String? = null,
+    /** Vurgu rengi (`hs_accent`, ARGB `FFRRGGBB`) → `setColor`. */
+    val accentColor: Int? = null,
+    /** Kilit ekranı görünürlüğü (`hs_visibility`): 1 public, 0 private, -1 secret. */
+    val visibility: Int? = null,
+    /**
+     * Sistem bildirim kimliği (`NotificationManager.notify` id'si); `HeroSignal.Notifications.removeNotification`
+     * ile kullanılır. Collapse/teslimat kimliği yoksa null (gösterimde zaman damgasından üretilir).
+     */
+    val androidNotificationId: Int? = null,
 ) {
     /** Tıklanan düğmenin URL'si; yoksa bildirim URL'si. */
     fun urlFor(actionId: String?): String? = actions.firstOrNull { it.id == actionId }?.url ?: url
@@ -56,8 +69,42 @@ data class HsNotification(
                 sound = data["hs_sound"].nonBlank(),
                 groupKey = data["hs_group"].nonBlank(),
                 silent = data["hs_silent"] == "1",
+                smallIcon = data["hs_small_icon"].nonBlank(),
+                largeIcon = data["hs_large_icon"].nonBlank(),
+                accentColor = parseAccentColor(data["hs_accent"]),
+                visibility = parseVisibility(data["hs_visibility"]),
+                androidNotificationId = (collapseKey ?: data["hs_collapse"].nonBlank() ?: hs?.optStringOrNull("dlv")
+                    ?: hs?.optStringOrNull("delivery_id") ?: data["hs_delivery_id"].nonBlank())?.hashCode(),
             )
         }
+
+        /**
+         * `hs_accent`: ARGB onaltılık renk (`FFRRGGBB`); başında `#` olabilir. 6 haneli `RRGGBB` tam opak kabul edilir.
+         * Geçersiz değerde null döner (renk uygulanmaz).
+         */
+        fun parseAccentColor(raw: String?): Int? {
+            val hex = raw?.trim()?.removePrefix("#") ?: return null
+            if (!HEX.matches(hex)) return null
+            val argb = when (hex.length) {
+                8 -> hex
+                6 -> "FF$hex"
+                else -> return null
+            }
+            return argb.toLong(16).toInt()
+        }
+
+        /** `hs_visibility`: yalnızca `1` (public), `0` (private) ve `-1` (secret) kabul edilir. */
+        fun parseVisibility(raw: String?): Int? = when (raw?.trim()) {
+            "1" -> 1
+            "0" -> 0
+            "-1" -> -1
+            else -> null
+        }
+
+        /** `hs_large_icon` bir ağ adresi mi (indirilecek) yoksa kaynak adı mı? */
+        fun isRemoteIcon(value: String): Boolean = value.startsWith("https://") || value.startsWith("http://")
+
+        private val HEX = Regex("^[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$")
 
         /** `hs` alanı veya `hs_*` anahtarı içeren mesajlar HeroSignal'e aittir. */
         fun isHeroSignal(data: Map<String, String>): Boolean = data.keys.any { it == "hs" || it.startsWith("hs_") }
