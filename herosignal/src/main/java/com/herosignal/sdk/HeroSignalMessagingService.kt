@@ -27,7 +27,8 @@ class HeroSignalMessagingService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         HsLog.d("FCM token yenilendi")
-        if (HeroSignal.isInitialized) HeroSignal.onNewToken(token)
+        // Uygulama kodu çalışmadan başlayan süreçte SDK son initialize yapılandırmasıyla başlatılır.
+        if (HeroSignal.ensureInitialized(applicationContext)) HeroSignal.onNewToken(token)
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
@@ -42,7 +43,10 @@ class HeroSignalMessagingService : FirebaseMessagingService() {
             channelId = message.notification?.channelId,
         )
         if (n.deliveryId == null && n.title == null && n.body == null) return // HeroSignal dışı mesaj
-        n.deliveryId?.let { if (HeroSignal.isInitialized) HeroSignal.reportReceived(it) }
+        // Uygulama kapalıyken (ör. Flutter motoru çalışmıyorken) gelen mesajın `received` bildirimi kaybolmasın diye
+        // SDK kayıtlı yapılandırmayla başlatılır.
+        val initialized = HeroSignal.ensureInitialized(applicationContext)
+        n.deliveryId?.let { if (initialized) HeroSignal.reportReceived(it) }
         if (n.silent) return // sessiz mesaj: gösterilmez
         if (n.title == null && n.body == null) return // gösterilecek içerik yok
 

@@ -10,7 +10,8 @@ import android.os.Build
 class NotificationDismissedReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val deliveryId = intent.getStringExtra(NotificationOpenedReceiver.EXTRA_DELIVERY_ID) ?: return
-        if (HeroSignal.isInitialized) HeroSignal.reportDismissed(deliveryId)
+        // Uygulama kapalıyken de `dismissed` kaybolmasın diye SDK kayıtlı yapılandırmayla başlatılır.
+        if (HeroSignal.ensureInitialized(context)) HeroSignal.reportDismissed(deliveryId)
     }
 
     internal companion object {

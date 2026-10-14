@@ -6,7 +6,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /** Cihazda kalıcı SDK durumu (SharedPreferences, app başına). */
-internal class HsStorage(context: Context, appId: String) {
+internal class HsStorage(context: Context, appId: String) : HsQueueStore, HsSessionTracker.State {
     private val prefs: SharedPreferences =
         context.applicationContext.getSharedPreferences("herosignal_$appId", Context.MODE_PRIVATE)
 
@@ -68,7 +68,32 @@ internal class HsStorage(context: Context, appId: String) {
         get() = prefs.getLong(KEY_IN_APP_MIN_INTERVAL, 0L)
         set(value) = prefs.edit().putLong(KEY_IN_APP_MIN_INTERVAL, value).apply()
 
-    var queue: List<JSONObject>
+    /** Sunucuya en son başarıyla yazılan `device.push_capable` (null: bilinmiyor); fark varsa PATCH edilir. */
+    var serverPushCapable: Boolean?
+        get() = if (prefs.contains(KEY_SERVER_PUSH_CAPABLE)) prefs.getBoolean(KEY_SERVER_PUSH_CAPABLE, false) else null
+        set(value) = prefs.edit().apply { if (value == null) remove(KEY_SERVER_PUSH_CAPABLE) else putBoolean(KEY_SERVER_PUSH_CAPABLE, value) }.apply()
+
+    /** Sunucuya en son başarıyla yazılan `opted_in` (null: bilinmiyor). */
+    var serverOptedIn: Boolean?
+        get() = if (prefs.contains(KEY_SERVER_OPTED_IN)) prefs.getBoolean(KEY_SERVER_OPTED_IN, true) else null
+        set(value) = prefs.edit().apply { if (value == null) remove(KEY_SERVER_OPTED_IN) else putBoolean(KEY_SERVER_OPTED_IN, value) }.apply()
+
+    /** Onay yokken yapılan login/logout sunucuya henüz yansıtılmadı; onay verilince eşitlenir. */
+    var identitySyncPending: Boolean
+        get() = prefs.getBoolean(KEY_IDENTITY_SYNC_PENDING, false)
+        set(value) = prefs.edit().putBoolean(KEY_IDENTITY_SYNC_PENDING, value).apply()
+
+    /** Açık oturumun başlangıcı (epoch ms; 0 = oturum yok). Süreç ölse de oturum süresiyle kapatılabilsin diye kalıcı. */
+    override var startedAt: Long
+        get() = prefs.getLong(KEY_SESSION_STARTED_AT, 0L)
+        set(value) = prefs.edit().putLong(KEY_SESSION_STARTED_AT, value).apply()
+
+    /** Uygulamanın arka plana geçtiği an (epoch ms; 0 = ön planda veya oturum yok). */
+    override var backgroundAt: Long
+        get() = prefs.getLong(KEY_SESSION_BACKGROUND_AT, 0L)
+        set(value) = prefs.edit().putLong(KEY_SESSION_BACKGROUND_AT, value).apply()
+
+    override var queue: List<JSONObject>
         get() {
             val raw = prefs.getString(KEY_QUEUE, null) ?: return emptyList()
             return runCatching {
@@ -120,5 +145,10 @@ internal class HsStorage(context: Context, appId: String) {
         const val KEY_IN_APP_LAST_IMPRESSION = "in_app_last_impression_at"
         const val KEY_IN_APP_MIN_INTERVAL = "in_app_min_interval_seconds"
         const val KEY_CONTACTS_PREFIX = "contacts_"
+        const val KEY_SERVER_PUSH_CAPABLE = "server_push_capable"
+        const val KEY_SERVER_OPTED_IN = "server_opted_in"
+        const val KEY_IDENTITY_SYNC_PENDING = "identity_sync_pending"
+        const val KEY_SESSION_STARTED_AT = "session_started_at"
+        const val KEY_SESSION_BACKGROUND_AT = "session_background_at"
     }
 }

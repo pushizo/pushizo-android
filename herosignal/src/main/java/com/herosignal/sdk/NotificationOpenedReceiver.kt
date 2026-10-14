@@ -14,7 +14,7 @@ class NotificationOpenedReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val notification = NotificationOpenActivity.notificationFrom(intent)
         val actionId = intent.getStringExtra(EXTRA_ACTION_ID)
-        if (HeroSignal.isInitialized) HeroSignal.reportOpened(notification, actionId)
+        if (HeroSignal.ensureInitialized(context)) HeroSignal.reportOpened(notification, actionId)
         runCatching { NotificationOpenActivity.launchTarget(context, notification.url, notification.deliveryId) }
             .onFailure { HsLog.w("bildirim hedefi açılamadı", it) }
     }

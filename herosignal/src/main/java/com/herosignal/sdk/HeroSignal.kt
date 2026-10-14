@@ -5,6 +5,8 @@ import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -17,6 +19,7 @@ import androidx.work.WorkManager
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -92,7 +95,12 @@ object HeroSignal {
     private val foregroundListeners = CopyOnWriteArraySet<(HsForegroundEvent) -> Unit>()
     private val subscriptionObservers = CopyOnWriteArraySet<(HsPushSubscriptionState) -> Unit>()
     private val permissionObservers = HsPermissionObservers { HsLog.w("izin gözlemcisi hata verdi", it) }
-    @Volatile private var sessionStartedAt: Long = 0
+    @Volatile private var sessionTracker: HsSessionTracker? = null
+    /** Arka plana geçişten 30 sn sonra oturumu kapatan iş (ön plana dönülürse iptal edilir). */
+    @Volatile private var sessionEndJob: Job? = null
+    /** Eşzamanlı kayıtlar (FCM servisi + başlatma) iki abonelik açmasın diye. */
+    private val registrationLock = Any()
+    private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
     @Volatile private var identityVerificationRequired = false
     @Volatile private var pendingClick: HsClickEvent? = null
     @Volatile private var inApp: HsInAppController? = null
@@ -101,6 +109,8 @@ object HeroSignal {
     private val inAppHost = object : HsInAppController.Host {
         override val context: Context? get() = appContext
         override fun subscriptionId(): String? = engagementSubscriptionId()
+        override fun ownershipTokenHash(subscriptionId: String): String? =
+            storage?.let { ownershipToken(it, subscriptionId) }?.let(HsOwnership::tokenHash)
         override fun request(method: String, path: String, body: JSONObject?): JSONObject =
             api?.request(method, path, body) ?: throw HsApiException(0, "NOT_INITIALIZED", "SDK başlatılmadı")
         override fun enqueue(op: JSONObject) = HeroSignal.enqueue(op)
@@ -125,54 +135,136 @@ object HeroSignal {
 
     @JvmStatic
     @JvmOverloads
+    @Synchronized
     fun initialize(context: Context, appId: String, options: Options = Options()) {
         require(appId.isNotBlank()) { "HeroSignal.initialize: appId gerekli" }
-        if (this.appId == appId && storage != null) return
+        // Yapılandırma kalıcı saklanır: uygulama kodu çalışmadan başlayan süreçlerde [ensureInitialized] kullanır.
+        HsInitConfig.save(context, appId, options)
+        if (this.appId == appId && storage != null) {
+            // Aynı app yeniden başlatıldı (ör. yerelde otomatik başlatma sonrası Flutter/Dart initialize): seçenekler güncellenir.
+            if (options != this.options) applyOptions(options)
+            return
+        }
         this.appContext = context.applicationContext
         this.appId = appId
         this.options = options
         HsLog.level = options.logLevel
         val store = HsStorage(context, appId)
         storage = store
-        api = HsApi(options.apiUrl, appId)
+        api = HsApi(options.apiUrl, appId, networkAllowed = ::networkAllowed)
         errorReporter = HsErrorReporter("android", BuildConfig.SDK_VERSION)
-        queue = HsQueue(store, { op -> perform(op) }) { op, e ->
+        queue = HsQueue(store, { op -> perform(op) }, { op, e ->
             reportError("operation_rejected", "kuyruk işlemi sunucu tarafından reddedildi", e, mapOf("operation" to op.optString("type")))
-        }
+        }, canFlush = ::networkAllowed)
+        sessionTracker = HsSessionTracker(store)
         inApp = HsInAppController(inAppHost).also {
             // Config gelene kadar son bilinen app geneli aralık uygulanır.
             it.globalMinIntervalSeconds = store.inAppMinIntervalSeconds
             it.attach()
         }
-        ProcessLifecycleOwner.get().lifecycle.addObserver(lifecycleObserver)
+        // Lifecycle gözlemcisi ana iş parçacığında eklenmelidir (otomatik başlatma FCM servis iş parçacığından gelebilir).
+        onMain { ProcessLifecycleOwner.get().lifecycle.addObserver(lifecycleObserver) }
         // İzin gözlemcileri için temel değer (yalnızca sonraki değişiklikler bildirilir).
         permissionObservers.update(Notifications.permission)
-        if (options.requiresPrivacyConsent && !store.consentGiven) {
+        // Önceki süreçte arka planda biten oturum (süreç pencere içinde öldürüldüyse) süresiyle kapatılır.
+        sessionTracker?.expire(System.currentTimeMillis())?.let(::enqueueSessionEnd)
+        if (!networkAllowed()) {
             HsLog.i("gizlilik onayı bekleniyor")
             return
         }
         start()
     }
 
-    /** KVKK/GDPR onayı. */
+    /**
+     * Uygulama kodu `initialize` çağırmadan başlayan süreçte (ör. Flutter/React Native uygulaması kapalıyken gelen FCM
+     * mesajı, bildirim tıklaması/kapatılması, WorkManager flush'ı) SDK'yı son `initialize` yapılandırmasıyla yerelde
+     * başlatır; böylece received/opened/dismissed geri bildirimi kaybolmaz. Hiç `initialize` yapılmadıysa false.
+     */
+    internal fun ensureInitialized(context: Context): Boolean {
+        if (isInitialized) return true
+        val (savedAppId, savedOptions) = HsInitConfig.load(context) ?: return false
+        runCatching { initialize(context, savedAppId, savedOptions) }.onFailure { HsLog.w("SDK kayıtlı yapılandırmayla başlatılamadı", it) }
+        return isInitialized
+    }
+
+    /** Aynı app için yeni seçenekler (API adresi, onay zorunluluğu, günlük seviyesi, kanal) uygulanır. */
+    private fun applyOptions(newOptions: Options) {
+        val wasAllowed = networkAllowed()
+        options = newOptions
+        HsLog.level = newOptions.logLevel
+        api = HsApi(newOptions.apiUrl, appId, networkAllowed = ::networkAllowed)
+        if (!wasAllowed && networkAllowed()) start()
+    }
+
+    private fun onMain(block: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) block() else mainHandler.post(block)
+    }
+
+    /** KVKK/GDPR: onay zorunlu değilse veya onay verildiyse ağ çağrısı yapılabilir. */
+    private fun networkAllowed(): Boolean {
+        val store = storage ?: return false
+        return !options.requiresPrivacyConsent || store.consentGiven
+    }
+
+    /**
+     * KVKK/GDPR onayı. Onay zorunluyken onay verilmeden hiçbir ağ çağrısı yapılmaz; işlemler (tag, olay, e-posta/SMS,
+     * teslimat geri bildirimi) kalıcı kuyrukta bekler ve onay verilince gönderilir.
+     */
     @JvmStatic
     fun setConsentGiven(given: Boolean) {
         val store = storage ?: return
+        val wasAllowed = networkAllowed()
         store.consentGiven = given
-        if (given) start() else { queue?.clear(); store.clearIdentity() }
+        if (given) {
+            start()
+            return
+        }
+        queue?.clear()
+        store.clearIdentity()
+        appContext?.let { WorkManager.getInstance(it).cancelUniqueWork(FLUSH_WORK) }
+        if (options.requiresPrivacyConsent && wasAllowed) closeSubscriptionAfterConsentRevoked(store)
+    }
+
+    /**
+     * Onay geri alındı: eski sağlayıcı'deki gibi bundan sonra hiçbir veri gönderilmez (kuyruk boşaltıldı, ağ kapısı kapalı).
+     * Tek istisna bilinçli olarak bu çağrıdır: onaydan önce kaydedilmiş push aboneliği bildirim almaya devam etmesin
+     * diye sunucuya bir kez `opted_in: false` yazılır (yeni kişisel veri içermez, yalnızca sahiplik kanıtı). Kullanıcının
+     * yerel tercihi (`optedIn`) korunur; onay yeniden verilince [reconcileSubscription] onu sunucuya geri yazar.
+     */
+    private fun closeSubscriptionAfterConsentRevoked(store: HsStorage) {
+        val subId = store.subscriptionId ?: return
+        val token = store.registeredToken
+        val api = api ?: return
+        scope.launch {
+            runCatching {
+                api.requestIgnoringConsent("PATCH", "/subscriptions/$subId", HsOwnership.withProof(JSONObject().put("opted_in", false), token))
+                store.serverOptedIn = false
+            }.onFailure { HsLog.w("onay geri alınınca abonelik kapatılamadı", it) }
+            notifySubscription()
+        }
     }
 
     private fun start() {
         scope.launch {
+            if (!networkAllowed()) return@launch
             runCatching { applyConfig(api!!.request("GET", "/config")) }.onFailure {
                 HsLog.w("config alınamadı", it)
                 reportError("config_failed", "app yapılandırması alınamadı", it)
+            }
+            // Onay yokken yerelde yapılan login/logout ve izin/opt-in değişiklikleri sunucuya yansıtılır.
+            runCatching { syncPendingIdentity() }.onFailure {
+                HsLog.w("bekleyen kimlik eşitlenemedi", it)
+                reportError("identity_sync_failed", "bekleyen login/logout eşitlenemedi", it)
+            }
+            runCatching { reconcileSubscription() }.onFailure {
+                HsLog.w("abonelik durumu eşitlenemedi", it)
+                reportError("subscription_update_failed", "abonelik durumu eşitlenemedi", it)
             }
             runCatching { refreshFcmToken() }.onFailure {
                 HsLog.w("FCM token alınamadı", it)
                 reportError("fcm_token_failed", "FCM token alınamadı", it)
             }
-            queue?.flush()
+            if (queue?.flush() == false) scheduleFlush()
         }
     }
 
@@ -237,10 +329,14 @@ object HeroSignal {
     private const val ERROR_FLUSH_DELAY_MS = 2_000L
 
     /** Token'ı sunucuyla eşitler (bkz. [HsTokenSync]); yeni token aynı aboneliğe taşınır. */
-    private fun registerSubscription(token: String) {
+    private fun registerSubscription(token: String) = synchronized(registrationLock) { registerSubscriptionLocked(token) }
+
+    private fun registerSubscriptionLocked(token: String) {
         val store = storage ?: return
         val ctx = appContext ?: return
         val api = api ?: return
+        // Gizlilik onayı yokken kayıt yapılmaz; token saklanır, onay verilince start() kaydeder.
+        if (!networkAllowed()) return
         val user = JSONObject()
         store.externalId?.let { user.put("external_id", it) }
         (store.pendingIdentityHash ?: store.userIdentityHash)?.let { user.put("identity_hash", it) }
@@ -253,39 +349,63 @@ object HeroSignal {
             }
         }
         val sync = HsTokenSync { method, path, body -> api.request(method, path, body) }
-        when (val result = sync.sync(store.subscriptionId, store.registeredToken, token, deviceInfo(ctx), user)) {
+        val device = deviceInfo(ctx)
+        when (val result = sync.sync(store.subscriptionId, store.registeredToken, token, device, user)) {
             HsTokenSyncResult.Unchanged -> return
-            HsTokenSyncResult.Updated -> store.registeredToken = token
+            HsTokenSyncResult.Updated -> {
+                store.registeredToken = token
+                store.serverPushCapable = device.optBoolean("push_capable")
+            }
             is HsTokenSyncResult.Created -> {
                 store.subscriptionId = result.subscriptionId
                 store.userId = result.userId
                 store.externalId = result.externalId
                 store.registeredToken = token
                 store.pendingIdentityHash = null
-                if (!store.optedIn) api.request("PATCH", "/subscriptions/${result.subscriptionId}", HsOwnership.withProof(JSONObject().put("opted_in", false), token))
+                store.identitySyncPending = false
+                store.serverPushCapable = device.optBoolean("push_capable")
+                // Yeni abonelik varsayılan olarak opted_in; kullanıcı daha önce optOut yaptıysa aşağıda PATCH edilir.
+                store.serverOptedIn = true
+                runCatching { reconcileSubscription() }.onFailure { HsLog.w("opt-out durumu yeni aboneliğe yazılamadı", it) }
                 inApp?.onSubscriptionChanged()
             }
         }
         notifySubscription()
-        queue?.flush()
+        if (queue?.flush() == false) scheduleFlush()
     }
 
     /** Uygulama sürümü (PackageInfo.versionName). */
     private fun appVersion(ctx: Context): String? =
         runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull()
 
-    private fun deviceInfo(ctx: Context): JSONObject {
-        val appVersion = appVersion(ctx)
-        return JSONObject()
-            .put("model", "${Build.MANUFACTURER} ${Build.MODEL}")
-            .put("os", "Android")
-            .put("os_version", Build.VERSION.RELEASE)
-            .put("app_version", appVersion ?: JSONObject.NULL)
-            .put("sdk_version", BuildConfig.SDK_VERSION)
-            .put("sdk_platform", "android")
-            .put("locale", Locale.getDefault().toLanguageTag())
-            .put("timezone", TimeZone.getDefault().id)
-            .put("push_capable", Notifications.permission)
+    private fun deviceInfo(ctx: Context): JSONObject = HsEvents.deviceInfo(
+        model = "${Build.MANUFACTURER} ${Build.MODEL}",
+        osVersion = Build.VERSION.RELEASE,
+        appVersion = appVersion(ctx),
+        sdkVersion = BuildConfig.SDK_VERSION,
+        locale = Locale.getDefault().toLanguageTag(),
+        timezone = TimeZone.getDefault().id,
+        pushCapable = Notifications.permission,
+    )
+
+    /**
+     * Sunucudaki `device.push_capable` ve `opted_in` değerlerini yereldekiyle eşitler: yalnızca son başarıyla yazılan
+     * değerden farklıysa `PATCH /subscriptions/{id}` gönderilir. İzin uygulama kapalıyken ayarlardan değiştirilse veya
+     * değişiklik onay beklenirken olsa da sunucu (push_capable=false → `pending`) bir sonraki başlatmada güncellenir.
+     */
+    private fun reconcileSubscription() {
+        val store = storage ?: return
+        val ctx = appContext ?: return
+        val api = api ?: return
+        val subId = store.subscriptionId ?: return
+        if (!networkAllowed()) return
+        val pushCapable = Notifications.permission
+        val optedIn = store.optedIn
+        if (store.serverPushCapable == pushCapable && store.serverOptedIn == optedIn) return
+        val body = JSONObject().put("device", deviceInfo(ctx)).put("opted_in", optedIn)
+        api.request("PATCH", "/subscriptions/$subId", HsOwnership.withProof(body, store.registeredToken))
+        store.serverPushCapable = pushCapable
+        store.serverOptedIn = optedIn
     }
 
     /**
@@ -369,26 +489,32 @@ object HeroSignal {
     internal fun enqueue(op: JSONObject) {
         val q = queue ?: return
         q.enqueue(op)
+        // Gizlilik onayı yokken işlem yalnızca kalıcı kuyruğa yazılır; onay verilince start() gönderir.
+        if (!networkAllowed()) return
         scope.launch { if (!q.flush()) scheduleFlush() }
     }
 
     /** Ağ gelince WorkManager ile ertelenmiş flush. */
     private fun scheduleFlush() {
         val ctx = appContext ?: return
+        if (!networkAllowed()) return
         val request = OneTimeWorkRequestBuilder<FlushWorker>()
             .setConstraints(androidx.work.Constraints.Builder().setRequiredNetworkType(androidx.work.NetworkType.CONNECTED).build())
             .build()
-        WorkManager.getInstance(ctx).enqueueUniqueWork("herosignal-flush", ExistingWorkPolicy.KEEP, request)
+        WorkManager.getInstance(ctx).enqueueUniqueWork(FLUSH_WORK, ExistingWorkPolicy.KEEP, request)
     }
 
-    internal fun flushQueue(): Boolean = queue?.flush() ?: true
+    private const val FLUSH_WORK = "herosignal-flush"
+
+    /** WorkManager flush'ı; onay yokken yapılacak iş yoktur (yeniden deneme planlanmaz). */
+    internal fun flushQueue(): Boolean = if (!networkAllowed()) true else queue?.flush() ?: true
 
     private fun perform(op: JSONObject) {
         val store = storage ?: return
         val api = api ?: return
         when (op.getString("type")) {
             "tags", "properties" -> {
-                val userId = store.userId ?: throw HsApiException(0, "NO_USER", "kullanıcı yok")
+                val userId = store.userId ?: throw HsDeferredException("kullanıcı yok")
                 val body = if (op.getString("type") == "tags") JSONObject().put("tags", op.getJSONObject("tags")) else JSONObject().put("properties", op.getJSONObject("properties"))
                 store.userIdentityHash?.let { body.put("identity_hash", it) }
                 val result = api.request("PATCH", "/users/$userId", body)
@@ -396,40 +522,34 @@ object HeroSignal {
                 store.tags = tags.keys().asSequence().associateWith { tags.getString(it) }
             }
             "event", "event_batch" -> {
-                val subId = store.subscriptionId ?: return
+                // Abonelik yoksa olay atılmaz: kayıt tamamlanınca (registerSubscription → flush) gönderilir.
+                val subId = engagementSubscriptionId() ?: throw HsDeferredException("abonelik yok")
                 val ops = if (op.getString("type") == "event") listOf(op) else {
                     val arr = op.getJSONArray("events")
                     (0 until arr.length()).map { arr.getJSONObject(it) }
                 }
-                val events = org.json.JSONArray()
-                for (e in ops) {
-                    val event = JSONObject()
-                        .put("name", e.getString("name"))
-                        .put("properties", e.optJSONObject("properties") ?: JSONObject())
-                        .put("occurred_at", e.getString("occurred_at"))
-                        .put("subscription_id", subId)
-                    if (e.has("value")) event.put("value", e.getDouble("value"))
-                    events.put(event)
-                }
+                // Sahiplik kanıtı (ADR-0016 Karar 8): kayıtlı token'ın/kanonik adresin özeti ve kimlikli kullanıcıda identity_hash.
+                val tokenHash = ownershipToken(store, subId)?.let(HsOwnership::tokenHash)
+                val events = HsEvents.items(ops, subId, tokenHash, store.externalId?.let { store.userIdentityHash })
                 api.request("POST", "/events", JSONObject().put("events", events))
             }
             "session_start", "session_end" -> {
-                val subId = store.subscriptionId ?: return
+                val subId = engagementSubscriptionId() ?: throw HsDeferredException("abonelik yok")
                 val body = JSONObject().put("subscription_id", subId).put("sdk_version", BuildConfig.SDK_VERSION)
                 // Oturumda uygulama sürümü de güncellenir (docs/plan/06 "Token yaşam döngüsü").
                 appContext?.let { ctx -> appVersion(ctx)?.let { body.put("app_version", it) } }
                 if (op.has("duration_seconds")) body.put("duration_seconds", op.getInt("duration_seconds"))
                 // Oturum cihaz sürümünü de yazdığı için sahiplik kanıtı eklenir (ADR-0016).
-                api.request("POST", "/sessions", HsOwnership.withProof(body, store.registeredToken, store.externalId?.let { store.userIdentityHash }))
+                api.request("POST", "/sessions", HsOwnership.withProof(body, ownershipToken(store, subId), store.externalId?.let { store.userIdentityHash }))
             }
             "alias_add" -> {
-                val userId = store.userId ?: throw HsApiException(0, "NO_USER", "kullanıcı yok")
+                val userId = store.userId ?: throw HsDeferredException("kullanıcı yok")
                 val body = JSONObject().put("identity", op.getJSONObject("aliases"))
                 store.userIdentityHash?.let { body.put("identity_hash", it) }
                 api.request("PATCH", "/users/$userId/identity", body)
             }
             "alias_remove" -> {
-                val userId = store.userId ?: throw HsApiException(0, "NO_USER", "kullanıcı yok")
+                val userId = store.userId ?: throw HsDeferredException("kullanıcı yok")
                 val label = URLEncoder.encode(op.getString("label"), "UTF-8")
                 val query = store.userIdentityHash?.let { "?identity_hash=${URLEncoder.encode(it, "UTF-8")}" }.orEmpty()
                 api.request("DELETE", "/users/$userId/identity/$label$query")
@@ -451,22 +571,34 @@ object HeroSignal {
 
     private val lifecycleObserver = object : DefaultLifecycleObserver {
         override fun onStart(owner: LifecycleOwner) {
-            sessionStartedAt = System.currentTimeMillis()
-            enqueue(JSONObject().put("type", "session_start").put("at", sessionStartedAt))
+            sessionEndJob?.cancel()
+            sessionEndJob = null
+            val now = System.currentTimeMillis()
+            sessionTracker?.onForeground(now)?.let { transition ->
+                transition.endedDurationSeconds?.let(::enqueueSessionEnd)
+                if (transition.started) enqueue(JSONObject().put("type", "session_start").put("at", now))
+            }
             inApp?.onSessionStart()
-            pendingClick?.let { click -> pendingClick = null; clickListeners.forEach { it(click) } }
+            // Dinleyici yoksa (ör. soğuk başlangıçta köprü henüz bağlanmadı) tıklama addClickListener'a kadar saklanır.
+            if (clickListeners.isNotEmpty()) pendingClick?.let { click -> pendingClick = null; clickListeners.forEach { it(click) } }
             // Kullanıcı izni sistem ayarlarından değiştirmiş olabilir.
             checkPermissionChange()
         }
         override fun onStop(owner: LifecycleOwner) {
             inApp?.onSessionEnd()
-            if (sessionStartedAt == 0L) return
-            // Oturum süresi (`usage_seconds`, ADR-0019 §8) arka plana geçişte `POST /sessions { duration_seconds }` ile gider.
-            val duration = ((System.currentTimeMillis() - sessionStartedAt) / 1000).toInt()
-            sessionStartedAt = 0
-            enqueue(JSONObject().put("type", "session_end").put("duration_seconds", duration).put("at", System.currentTimeMillis()))
+            val tracker = sessionTracker ?: return
+            if (!tracker.onBackground(System.currentTimeMillis())) return
+            // Oturum arka planda 30 sn kalınca biter; süre (`usage_seconds`, ADR-0019 §8) `POST /sessions { duration_seconds }`
+            // ile gider. Süreç bu arada ölürse bir sonraki başlatmada (initialize/onStart) kapatılır.
+            sessionEndJob = scope.launch {
+                delay(HsSessionTracker.WINDOW_MS)
+                tracker.expire(System.currentTimeMillis())?.let(::enqueueSessionEnd)
+            }
         }
     }
+
+    private fun enqueueSessionEnd(durationSeconds: Int) =
+        enqueue(JSONObject().put("type", "session_end").put("duration_seconds", durationSeconds).put("at", System.currentTimeMillis()))
 
     // --- Teslimat geri bildirimi (servis/receiver çağırır) ---
 
@@ -521,11 +653,11 @@ object HeroSignal {
     private fun syncPermissionState(granted: Boolean) {
         scope.launch {
             val store = storage ?: return@launch
-            val ctx = appContext ?: return@launch
-            if (options.requiresPrivacyConsent && !store.consentGiven) return@launch
+            if (!networkAllowed()) return@launch
             val subId = store.subscriptionId
             runCatching {
-                if (subId != null) api!!.request("PATCH", "/subscriptions/$subId", HsOwnership.withProof(JSONObject().put("device", deviceInfo(ctx)), store.registeredToken))
+                // Kayıt varsa `push_capable` sunucudakinden farklıysa PATCH edilir (false → abonelik `pending`).
+                if (subId != null) reconcileSubscription()
                 else if (granted) store.fcmToken?.let { registerSubscription(it) }
             }.onFailure {
                 HsLog.w("izin sonrası abonelik güncellenemedi", it)
@@ -544,17 +676,18 @@ object HeroSignal {
         require(externalId.isNotBlank()) { "externalId gerekli" }
         if (identityVerificationRequired && identityHash == null) error("Bu app için identityHash zorunlu")
         scope.launch {
+            if (!networkAllowed()) {
+                // Gizlilik onayı yokken ağ çağrısı yapılmaz: kimlik yerelde tutulur, onay verilince start() eşitler.
+                store.externalId = externalId
+                store.pendingIdentityHash = identityHash
+                store.userIdentityHash = identityHash
+                store.identitySyncPending = true
+                inApp?.reset()
+                return@launch
+            }
             val subId = store.subscriptionId
             if (subId != null) {
-                runCatching {
-                    val body = HsOwnership.loginBody(externalId, identityHash, store.registeredToken)
-                    val result = api!!.request("POST", "/subscriptions/$subId/login", body)
-                    store.userId = result.getString("user_id")
-                    store.externalId = result.optString("external_id").ifBlank { null }
-                    store.userIdentityHash = identityHash
-                    val tags = result.optJSONObject("tags") ?: JSONObject()
-                    store.tags = tags.keys().asSequence().associateWith { tags.getString(it) }
-                }.onFailure {
+                runCatching { loginSubscription(store, subId, externalId, identityHash) }.onFailure {
                     HsLog.e("login başarısız", it)
                     reportError("login_failed", "login başarısız", it)
                 }
@@ -586,14 +719,16 @@ object HeroSignal {
     fun logout() {
         val store = storage ?: return
         scope.launch {
+            if (!networkAllowed()) {
+                // Onay yokken yalnızca yerel kimlik temizlenir; onay verilince start() sunucudaki aboneliği ayırır.
+                store.clearIdentity()
+                store.identitySyncPending = true
+                inApp?.reset()
+                return@launch
+            }
             val subId = store.subscriptionId
             if (subId != null) {
-                runCatching {
-                    val proof = HsOwnership.withProof(JSONObject(), store.registeredToken, store.externalId?.let { store.userIdentityHash })
-                    val result = api!!.request("POST", "/subscriptions/$subId/logout", proof)
-                    store.clearIdentity()
-                    store.userId = result.getString("user_id")
-                }.onFailure {
+                runCatching { logoutSubscription(store, subId) }.onFailure {
                     HsLog.e("logout başarısız", it)
                     reportError("logout_failed", "logout başarısız", it)
                 }
@@ -601,6 +736,47 @@ object HeroSignal {
             inApp?.reset()
             inApp?.onSubscriptionChanged()
         }
+    }
+
+    /** `POST /subscriptions/{id}/login`; hata fırlatır (çağıran raporlar). */
+    private fun loginSubscription(store: HsStorage, subId: String, externalId: String, identityHash: String?) {
+        val body = HsOwnership.loginBody(externalId, identityHash, store.registeredToken)
+        val result = api!!.request("POST", "/subscriptions/$subId/login", body)
+        store.userId = result.getString("user_id")
+        store.externalId = result.optString("external_id").ifBlank { null }
+        store.userIdentityHash = identityHash
+        val tags = result.optJSONObject("tags") ?: JSONObject()
+        store.tags = tags.keys().asSequence().associateWith { tags.getString(it) }
+    }
+
+    /** `POST /subscriptions/{id}/logout`; hata fırlatır (çağıran raporlar). */
+    private fun logoutSubscription(store: HsStorage, subId: String) {
+        val proof = HsOwnership.withProof(JSONObject(), store.registeredToken, store.externalId?.let { store.userIdentityHash })
+        val result = api!!.request("POST", "/subscriptions/$subId/logout", proof)
+        store.clearIdentity()
+        store.userId = result.getString("user_id")
+    }
+
+    /**
+     * Onay beklenirken yapılan login/logout'u sunucuya yansıtır. Abonelik henüz yoksa kimlik ilk kayıtta
+     * (registerSubscription `user.external_id`) gönderildiğinden ayrıca istek gerekmez. Başarısızlıkta bekleme sürer.
+     */
+    private fun syncPendingIdentity() {
+        val store = storage ?: return
+        if (!store.identitySyncPending || !networkAllowed()) return
+        val subId = store.subscriptionId
+        if (subId != null) {
+            val externalId = store.externalId
+            if (externalId != null) {
+                loginSubscription(store, subId, externalId, store.userIdentityHash)
+                linkContacts(externalId, store.userIdentityHash)
+            } else {
+                logoutSubscription(store, subId)
+            }
+            inApp?.reset()
+            inApp?.onSubscriptionChanged()
+        }
+        store.identitySyncPending = false
     }
 
     object User {
@@ -710,12 +886,14 @@ object HeroSignal {
             val optedIn: Boolean get() = (storage?.optedIn ?: false) && Notifications.permission
             val state: HsPushSubscriptionState get() = HsPushSubscriptionState(id, token, optedIn, Notifications.permission)
 
+            /** Tercih yerelde saklanır; onay yokken sunucuya yazılmaz, onay verilince eşitlenir. */
             @JvmStatic fun optIn() {
                 val store = storage ?: return
                 store.optedIn = true
                 scope.launch {
-                    store.subscriptionId?.let { runCatching { api!!.request("PATCH", "/subscriptions/$it", HsOwnership.withProof(JSONObject().put("opted_in", true), store.registeredToken)) } }
-                        ?: store.fcmToken?.let { runCatching { registerSubscription(it) } }
+                    runCatching {
+                        if (store.subscriptionId != null) reconcileSubscription() else store.fcmToken?.let { registerSubscription(it) }
+                    }.onFailure { HsLog.w("opt-in sunucuya yazılamadı", it) }
                     notifySubscription()
                 }
             }
@@ -724,7 +902,7 @@ object HeroSignal {
                 val store = storage ?: return
                 store.optedIn = false
                 scope.launch {
-                    store.subscriptionId?.let { runCatching { api!!.request("PATCH", "/subscriptions/$it", HsOwnership.withProof(JSONObject().put("opted_in", false), store.registeredToken)) } }
+                    runCatching { reconcileSubscription() }.onFailure { HsLog.w("opt-out sunucuya yazılamadı", it) }
                     notifySubscription()
                 }
             }
@@ -870,19 +1048,18 @@ object HeroSignal {
      * Kotlin'de `suspend` sürümler, Java ve köprüler için [HsCallback] sürümleri kullanılır.
      */
     object Inbox {
-        private class Ctx(val userId: String, val subscriptionId: String, val identityHash: String?)
-
-        private fun ctx(): Ctx {
+        /** Kanıt: etkileşim aboneliğinin kayıtlı token'ı (veya kanonik adresi) özeti ve login'deki identity_hash (ADR-0016). */
+        private fun ctx(): HsInboxAuth {
             val store = storage ?: throw IllegalStateException("HeroSignal.initialize önce çağrılmalı")
             val subId = engagementSubscriptionId() ?: throw IllegalStateException("Abonelik henüz kaydedilmedi")
             val userId = store.userId ?: throw IllegalStateException("Kullanıcı henüz kaydedilmedi")
-            return Ctx(userId, subId, store.userIdentityHash)
+            return HsInboxAuth(userId, subId, ownershipToken(store, subId)?.let(HsOwnership::tokenHash), store.userIdentityHash)
         }
 
         private fun enc(value: String) = URLEncoder.encode(value, "UTF-8")
-        private fun base(c: Ctx) = "/users/${enc(c.userId)}/inbox"
-        private fun query(c: Ctx) = "subscription_id=${enc(c.subscriptionId)}" + (c.identityHash?.let { "&identity_hash=${enc(it)}" } ?: "")
-        private fun body(c: Ctx) = JSONObject().put("subscription_id", c.subscriptionId).apply { c.identityHash?.let { put("identity_hash", it) } }
+        private fun base(c: HsInboxAuth) = c.basePath
+        private fun query(c: HsInboxAuth) = c.query()
+        private fun body(c: HsInboxAuth) = c.body()
         private fun call(method: String, path: String, body: JSONObject? = null): JSONObject =
             api?.request(method, path, body) ?: throw IllegalStateException("HeroSignal.initialize önce çağrılmalı")
 
