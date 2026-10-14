@@ -68,6 +68,8 @@ internal class HsInAppController(private val host: Host) {
         val context: Context?
         /** In-app/inbox çağrılarında kullanılacak abonelik (push, yoksa e-posta/SMS). */
         fun subscriptionId(): String?
+        /** Aboneliğin sahiplik kanıtı özeti (ADR-0016; push: kayıtlı token, e-posta/SMS: kanonik adres); yoksa null. */
+        fun ownershipTokenHash(subscriptionId: String): String?
         fun request(method: String, path: String, body: JSONObject? = null): JSONObject
         fun enqueue(op: JSONObject)
         fun addTags(tags: Map<String, String>)
@@ -195,7 +197,7 @@ internal class HsInAppController(private val host: Host) {
         if (!fetching.compareAndSet(false, true)) return
         host.runInBackground {
             try {
-                val json = host.request("GET", "/in-app?subscription_id=${URLEncoder.encode(subId, "UTF-8")}")
+                val json = host.request("GET", listPath(subId, host.ownershipTokenHash(subId)))
                 val list = HsInAppParser.parseList(json)
                 synchronized(lock) {
                     messages = list
@@ -352,9 +354,7 @@ internal class HsInAppController(private val host: Host) {
     /** Kuyruktaki in-app olayı (HeroSignal.perform). */
     fun send(op: JSONObject) {
         val subId = host.subscriptionId() ?: return
-        val body = JSONObject().put("subscription_id", subId).put("type", op.getString("event"))
-        op.optString("button_id").takeIf { it.isNotBlank() }?.let { body.put("button_id", it) }
-        op.optString("variant_id").takeIf { it.isNotBlank() }?.let { body.put("variant_id", it) }
+        val body = eventBody(op, subId, host.ownershipTokenHash(subId))
         host.request("POST", "/in-app/${URLEncoder.encode(op.getString("message_id"), "UTF-8")}/events", body)
     }
 
@@ -372,5 +372,19 @@ internal class HsInAppController(private val host: Host) {
         const val REFRESH_INTERVAL_MS = 5 * 60_000L
         const val SESSION_REFRESH_MIN_AGE_MS = 30_000L
         const val SESSION_START_WINDOW_MS = 60_000L
+
+        /** `GET /in-app` yolu; sahiplik kanıtı (ADR-0016) varsa `token_hash` eklenir. */
+        internal fun listPath(subscriptionId: String, tokenHash: String?): String =
+            "/in-app?subscription_id=${URLEncoder.encode(subscriptionId, "UTF-8")}" +
+                (tokenHash?.let { "&token_hash=${URLEncoder.encode(it, "UTF-8")}" } ?: "")
+
+        /** Kuyruktaki olaydan `POST /in-app/{id}/events` gövdesi; kanıt gönderim anındaki abonelikten çözülür. */
+        internal fun eventBody(op: JSONObject, subscriptionId: String, tokenHash: String?): JSONObject {
+            val body = JSONObject().put("subscription_id", subscriptionId).put("type", op.getString("event"))
+            tokenHash?.let { body.put("token_hash", it) }
+            op.optString("button_id").takeIf { it.isNotBlank() }?.let { body.put("button_id", it) }
+            op.optString("variant_id").takeIf { it.isNotBlank() }?.let { body.put("variant_id", it) }
+            return body
+        }
     }
 }

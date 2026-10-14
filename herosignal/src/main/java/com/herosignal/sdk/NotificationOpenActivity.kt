@@ -38,7 +38,8 @@ class NotificationOpenActivity : Activity() {
         if (actionId != null && intent.hasExtra(EXTRA_NOTIFICATION_ID)) {
             NotificationManagerCompat.from(this).cancel(intent.getStringExtra(EXTRA_NOTIFICATION_TAG), intent.getIntExtra(EXTRA_NOTIFICATION_ID, 0))
         }
-        if (HeroSignal.isInitialized) HeroSignal.reportOpened(notification, actionId)
+        // Soğuk başlangıçta SDK kayıtlı yapılandırmayla başlatılır; tıklama dinleyici eklenene kadar saklanır.
+        if (HeroSignal.ensureInitialized(applicationContext)) HeroSignal.reportOpened(notification, actionId)
         launchTarget(this, notification.url, notification.deliveryId)
     }
 

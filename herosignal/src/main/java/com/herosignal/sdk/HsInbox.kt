@@ -1,6 +1,7 @@
 package com.herosignal.sdk
 
 import org.json.JSONObject
+import java.net.URLEncoder
 
 /** Bildirim kutusu öğesi (`docs/messaging.md` §8). Zamanlar epoch milisaniyedir. */
 data class HsInboxItem(
@@ -29,6 +30,35 @@ data class HsInboxPage(
 /** Java/köprü kullanımı için sonuç geri çağrısı (ana iş parçacığında çağrılmaz; arka plan iş parçacığındadır). */
 fun interface HsCallback<T> {
     fun onResult(result: Result<T>)
+}
+
+/**
+ * Bildirim kutusu isteklerinin yetkilendirmesi: abonelik kullanıcıya ait olmalı (sunucu doğrular). `tokenHash`
+ * aboneliğin sahiplik kanıtıdır (ADR-0016; push: kayıtlı token, e-posta/SMS: kanonik adres özeti), `identityHash`
+ * login'de verilen HMAC'tir; ikisi de yalnızca mevcutsa gönderilir.
+ */
+internal class HsInboxAuth(
+    val userId: String,
+    val subscriptionId: String,
+    val tokenHash: String?,
+    val identityHash: String?,
+) {
+    private fun enc(value: String) = URLEncoder.encode(value, "UTF-8")
+
+    val basePath: String get() = "/users/${enc(userId)}/inbox"
+
+    /** `GET` ve `DELETE` için sorgu dizesi (başında `?` yok). */
+    fun query(): String = listOfNotNull(
+        "subscription_id=${enc(subscriptionId)}",
+        tokenHash?.let { "token_hash=${enc(it)}" },
+        identityHash?.let { "identity_hash=${enc(it)}" },
+    ).joinToString("&")
+
+    /** `POST …/read` ve `POST …/read-all` gövdesi. */
+    fun body(): JSONObject = JSONObject().put("subscription_id", subscriptionId).apply {
+        tokenHash?.let { put("token_hash", it) }
+        identityHash?.let { put("identity_hash", it) }
+    }
 }
 
 internal object HsInboxParser {
