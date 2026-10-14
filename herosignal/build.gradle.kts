@@ -59,6 +59,41 @@ publishing {
             artifactId = "herosignal-android"
             version = "0.1.0"
             afterEvaluate { from(components["release"]) }
+            pom {
+                name.set("HeroSignal Android SDK")
+                description.set("HeroSignal Android SDK: FCM kaydı, kullanıcı/tag yönetimi, olaylar, in-app mesajlar ve bildirim kutusu")
+                url.set("https://github.com/exec0de/herosignal/tree/main/sdk/android")
+                licenses {
+                    license {
+                        name.set("MIT")
+                        url.set("https://github.com/exec0de/herosignal/blob/main/LICENSE")
+                    }
+                }
+                developers {
+                    developer {
+                        id.set("herosignal")
+                        name.set("HeroSignal")
+                        url.set("https://github.com/exec0de/herosignal")
+                    }
+                }
+                scm {
+                    url.set("https://github.com/exec0de/herosignal")
+                    connection.set("scm:git:https://github.com/exec0de/herosignal.git")
+                    developerConnection.set("scm:git:ssh://git@github.com/exec0de/herosignal.git")
+                }
+            }
+        }
+    }
+    repositories {
+        // GitHub Packages (sdk-release.yml `maven` işi): GITHUB_ACTOR/GITHUB_TOKEN ortam değişkenleri ya da gradle.properties
+        // `gpr.user`/`gpr.key`. Maven Central için docs/sdk/publishing.md (Sonatype hesabı + GPG imzası gerekir).
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/exec0de/herosignal")
+            credentials {
+                username = (project.findProperty("gpr.user") as String?) ?: System.getenv("GITHUB_ACTOR")
+                password = (project.findProperty("gpr.key") as String?) ?: System.getenv("GITHUB_TOKEN")
+            }
         }
     }
 }
