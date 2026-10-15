@@ -16,7 +16,6 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
-import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -106,6 +105,8 @@ object HeroSignal {
     @Volatile private var identityVerificationMode = HsIdentityVerificationMode.HMAC
     @Volatile private var pendingClick: HsClickEvent? = null
     @Volatile private var inApp: HsInAppController? = null
+    /** Bu cihazda kullanılan push sağlayıcısı (FCM veya `herosignal-hms` modülü eklendiyse HMS; bkz. [HsPushProviders]). */
+    @Volatile private var pushProvider: HsPushProvider? = null
 
     /** In-app akışının SDK'ya bağlantısı (abonelik, API, kuyruk). */
     private val inAppHost = object : HsInAppController.Host {
@@ -159,6 +160,7 @@ object HeroSignal {
             reportError("operation_rejected", "kuyruk işlemi sunucu tarafından reddedildi", e, mapOf("operation" to op.optString("type")))
         }, canFlush = ::networkAllowed)
         sessionTracker = HsSessionTracker(store)
+        pushProvider = HsPushProviders.resolve(context.applicationContext)
         inApp = HsInAppController(inAppHost).also {
             // Config gelene kadar son bilinen app geneli aralık uygulanır.
             it.globalMinIntervalSeconds = store.inAppMinIntervalSeconds
@@ -224,10 +226,14 @@ object HeroSignal {
             start()
             return
         }
+        // Paylaşılmış (veya silinmesi beklenen) konum varsa rıza geri alınırken sunucudan da silinir.
+        val clearLocation = store.locationShared || store.queue.any { it.optString("type") == HsLocationRules.OP_TYPE }
         queue?.clear()
         store.clearIdentity()
+        // Paylaşım tercihi korunur; onay yeniden verilince konum ilk ön plana geçişte hemen gönderilir.
+        store.locationLastSharedAt = 0L
         appContext?.let { WorkManager.getInstance(it).cancelUniqueWork(FLUSH_WORK) }
-        if (options.requiresPrivacyConsent && wasAllowed) closeSubscriptionAfterConsentRevoked(store)
+        if (options.requiresPrivacyConsent && wasAllowed) closeSubscriptionAfterConsentRevoked(store, clearLocation)
     }
 
     /**
@@ -235,14 +241,17 @@ object HeroSignal {
      * Tek istisna bilinçli olarak bu çağrıdır: onaydan önce kaydedilmiş push aboneliği bildirim almaya devam etmesin
      * diye sunucuya bir kez `opted_in: false` yazılır (yeni kişisel veri içermez, yalnızca sahiplik kanıtı). Kullanıcının
      * yerel tercihi (`optedIn`) korunur; onay yeniden verilince [reconcileSubscription] onu sunucuya geri yazar.
+     * Konum paylaşıldıysa aynı istekte `location: null` gönderilir (konum ve KVKK rıza kaydı silinir).
      */
-    private fun closeSubscriptionAfterConsentRevoked(store: HsStorage) {
+    private fun closeSubscriptionAfterConsentRevoked(store: HsStorage, clearLocation: Boolean) {
         val subId = store.subscriptionId ?: return
         val token = store.registeredToken
         val api = api ?: return
+        val body = JSONObject().put("opted_in", false)
+        if (clearLocation) body.put("location", JSONObject.NULL)
         scope.launch {
             runCatching {
-                api.requestIgnoringConsent("PATCH", "/subscriptions/$subId", HsOwnership.withProof(JSONObject().put("opted_in", false), token))
+                api.requestIgnoringConsent("PATCH", "/subscriptions/$subId", HsOwnership.withProof(body, token))
                 store.serverOptedIn = false
             }.onFailure { HsLog.w("onay geri alınınca abonelik kapatılamadı", it) }
             notifySubscription()
@@ -265,11 +274,14 @@ object HeroSignal {
                 HsLog.w("abonelik durumu eşitlenemedi", it)
                 reportError("subscription_update_failed", "abonelik durumu eşitlenemedi", it)
             }
-            runCatching { refreshFcmToken() }.onFailure {
-                HsLog.w("FCM token alınamadı", it)
-                reportError("fcm_token_failed", "FCM token alınamadı", it)
+            runCatching { refreshPushToken() }.onFailure {
+                val channel = activePushChannel()
+                HsLog.w("$channel token alınamadı", it)
+                reportError(tokenErrorCode(channel), "$channel token alınamadı", it)
             }
             if (queue?.flush() == false) scheduleFlush()
+            // Onay yeni verildiyse ve uygulama ön plandaysa konum paylaşımı da başlar.
+            if (isInForeground()) shareLocationIfDue()
         }
     }
 
@@ -286,26 +298,54 @@ object HeroSignal {
         appContext?.let { HsNotificationChannels.sync(it, config.optJSONArray("android_channels")) }
     }
 
-    /** FCM token'ı alır; değiştiyse (veya kayıt yoksa) sunucuya kaydeder. */
-    internal fun refreshFcmToken() {
-        FirebaseMessaging.getInstance().token
-            .addOnSuccessListener { token -> scope.launch { onNewToken(token) } }
-            .addOnFailureListener { e ->
-                HsLog.w("FCM token alınamadı", e)
-                reportError("fcm_token_failed", "FCM token alınamadı", e)
-            }
+    /** Etkin push kanalı (`android_push` veya `hms_push`). */
+    internal fun activePushChannel(): String = pushProvider?.channel ?: HsPushProviders.CHANNEL_FCM
+
+    /** Token hatası rapor kodu (FCM için önceki sürümlerle aynı `fcm_token_failed`). */
+    internal fun tokenErrorCode(channel: String): String =
+        if (channel == HsPushProviders.CHANNEL_HMS) "hms_token_failed" else "fcm_token_failed"
+
+    /** Etkin sağlayıcının token'ını alır; değiştiyse (veya kayıt yoksa) sunucuya kaydeder. */
+    internal fun refreshPushToken() {
+        val ctx = appContext ?: return
+        val provider = pushProvider ?: HsFcmPushProvider
+        provider.requestToken(
+            ctx,
+            { token -> scope.launch { onNewToken(token, provider.channel) } },
+            { e ->
+                HsLog.w("${provider.channel} token alınamadı", e)
+                reportError(tokenErrorCode(provider.channel), "${provider.channel} token alınamadı", e)
+            },
+        )
     }
 
-    /** FCM yeni/yenilenen token: kayıtlı abonelik varsa PATCH ile güncellenir, yoksa kayıt oluşturulur. */
-    internal fun onNewToken(token: String) {
+    /**
+     * Yeni/yenilenen push token'ı: kayıtlı abonelik varsa PATCH ile güncellenir, yoksa kayıt oluşturulur. Etkin olmayan
+     * sağlayıcıdan gelen token (ör. GMS'li cihazda HMS servisi) yok sayılır; cihazda tek push aboneliği kalır.
+     */
+    internal fun onNewToken(token: String, channel: String = HsPushProviders.CHANNEL_FCM) {
         val store = storage ?: return
         if (token.isBlank()) return
+        if (channel != activePushChannel()) {
+            HsLog.d("etkin olmayan push sağlayıcısının token'ı yok sayıldı ($channel)")
+            return
+        }
         store.fcmToken = token
+        store.pushTokenChannel = channel
         if (options.requiresPrivacyConsent && !store.consentGiven) return
-        runCatching { registerSubscription(token) }.onFailure {
+        runCatching { registerSubscription(token, channel) }.onFailure {
             HsLog.w("abonelik kaydı başarısız", it)
             reportError("registration_failed", "push aboneliği kaydedilemedi", it)
         }
+    }
+
+    /** Saklanan token etkin kanala aitse kaydeder (login, opt-in, izin değişikliği); başka sağlayıcınınsa beklenir. */
+    private fun registerStoredToken() {
+        val store = storage ?: return
+        val token = store.fcmToken ?: return
+        val channel = store.pushTokenChannel ?: HsPushProviders.CHANNEL_FCM
+        if (channel != activePushChannel()) return
+        registerSubscription(token, channel)
     }
 
     // --- SDK hata raporları ---
@@ -335,9 +375,10 @@ object HeroSignal {
     private const val ERROR_FLUSH_DELAY_MS = 2_000L
 
     /** Token'ı sunucuyla eşitler (bkz. [HsTokenSync]); yeni token aynı aboneliğe taşınır. */
-    private fun registerSubscription(token: String) = synchronized(registrationLock) { registerSubscriptionLocked(token) }
+    private fun registerSubscription(token: String, channel: String) =
+        synchronized(registrationLock) { registerSubscriptionLocked(token, channel) }
 
-    private fun registerSubscriptionLocked(token: String) {
+    private fun registerSubscriptionLocked(token: String, channel: String) {
         val store = storage ?: return
         val ctx = appContext ?: return
         val api = api ?: return
@@ -356,14 +397,20 @@ object HeroSignal {
         }
         val sync = HsTokenSync { method, path, body -> api.request(method, path, body) }
         val device = deviceInfo(ctx)
-        when (val result = sync.sync(store.subscriptionId, store.registeredToken, token, device, user)) {
+        val previousToken = store.registeredToken
+        when (val result = sync.sync(store.subscriptionId, previousToken, token, device, user, channel, store.pushChannel)) {
             HsTokenSyncResult.Unchanged -> return
             HsTokenSyncResult.Updated -> {
                 store.registeredToken = token
                 store.serverPushCapable = device.optBoolean("push_capable")
             }
             is HsTokenSyncResult.Created -> {
+                // Kanal değişti (FCM ↔ HMS): eski push aboneliği kalıcı kuyrukla silinir (kanıt: eski token'ın özeti).
+                result.replacedSubscriptionId?.let { oldId ->
+                    previousToken?.let { enqueueSubscriptionRemoval(oldId, HsOwnership.tokenHash(it)) }
+                }
                 store.subscriptionId = result.subscriptionId
+                store.pushChannel = channel
                 store.userId = result.userId
                 store.externalId = result.externalId
                 store.registeredToken = token
@@ -563,6 +610,23 @@ object HeroSignal {
             "contact_add" -> addContact(op.getString("channel"), op.getString("address"))
             "contact_remove" -> removeContact(op.getString("channel"), op.getString("address"))
             "in_app_event" -> inApp?.send(op)
+            HsLocationRules.OP_TYPE -> {
+                // Kuyrukta daha yeni konum işlemi varsa (ör. paylaşım kapatıldı) bu işlem gönderilmeden atılır.
+                if (HsLocationRules.isSuperseded(op, store.queue)) return
+                val subId = engagementSubscriptionId() ?: throw HsDeferredException("abonelik yok")
+                // Sahiplik kanıtı diğer PATCH alanlarıyla aynı: kayıtlı token'ın/kanonik adresin özeti, kimlikli kullanıcıda identity_hash.
+                val body = HsOwnership.withProof(HsLocationRules.body(op), ownershipToken(store, subId), store.externalId?.let { store.userIdentityHash })
+                api.request("PATCH", "/subscriptions/$subId", body)
+            }
+            "subscription_remove" -> {
+                // Push kanalı değişince eski abonelik silinir; kanıt eski token'ın özetidir (token cihazda tutulmaz).
+                val subId = URLEncoder.encode(op.getString("subscription_id"), "UTF-8")
+                try {
+                    api.request("DELETE", "/subscriptions/$subId?token_hash=${op.getString("token_hash")}")
+                } catch (e: HsApiException) {
+                    if (e.status != 404) throw e // 404: abonelik zaten silinmiş
+                }
+            }
             "received" -> api.request("POST", "/deliveries/${op.getString("delivery_id")}/received", JSONObject())
             "dismissed" -> api.request("POST", "/deliveries/${op.getString("delivery_id")}/dismissed", JSONObject())
             "opened" -> {
@@ -589,6 +653,8 @@ object HeroSignal {
             if (clickListeners.isNotEmpty()) pendingClick?.let { click -> pendingClick = null; clickListeners.forEach { it(click) } }
             // Kullanıcı izni sistem ayarlarından değiştirmiş olabilir.
             checkPermissionChange()
+            // Oturum başında ve ön plana dönüşte konum (paylaşım açıksa, en sık 5 dakikada bir).
+            shareLocationIfDue()
         }
         override fun onStop(owner: LifecycleOwner) {
             inApp?.onSessionEnd()
@@ -600,6 +666,42 @@ object HeroSignal {
                 delay(HsSessionTracker.WINDOW_MS)
                 tracker.expire(System.currentTimeMillis())?.let(::enqueueSessionEnd)
             }
+        }
+    }
+
+    /** Kanal değişince eski push aboneliğinin silinmesi (kalıcı kuyruk; çevrimdışıyken bekler). */
+    private fun enqueueSubscriptionRemoval(subscriptionId: String, tokenHash: String) = enqueue(
+        JSONObject().put("type", "subscription_remove").put("subscription_id", subscriptionId).put("token_hash", tokenHash)
+            .put("at", System.currentTimeMillis()),
+    )
+
+    private val locationLock = Any()
+
+    private fun isInForeground(): Boolean =
+        ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
+
+    /**
+     * Paylaşım açık, onay (gerekiyorsa) verilmiş, konum izni var ve son gönderimden 5 dakika geçtiyse güncel konumu alıp
+     * kuyruğa yazar (paylaşım kapatılınca son gönderim anı sıfırlandığından yeniden açınca hemen gönderilir). Yalnızca ön planda çağrılır.
+     */
+    private fun shareLocationIfDue() {
+        val store = storage ?: return
+        val ctx = appContext ?: return
+        val now = System.currentTimeMillis()
+        val permission = HsLocationProvider.permissionGranted(ctx)
+        val previous = synchronized(locationLock) {
+            if (!HsLocationRules.isDue(store, networkAllowed(), permission, now)) return
+            // Konum gelene kadar aynı aralıkta ikinci istek başlamasın diye an önceden işaretlenir.
+            store.locationLastSharedAt.also { store.locationLastSharedAt = now }
+        }
+        HsLocationProvider.current(ctx) { fix ->
+            // Bu arada paylaşım kapatıldıysa veya onay geri alındıysa konum kuyruğa yazılmaz.
+            val op = fix?.takeIf { store.locationShared && networkAllowed() }?.let { HsLocationRules.op(it, System.currentTimeMillis()) }
+            if (op == null) {
+                if (store.locationLastSharedAt == now) store.locationLastSharedAt = previous
+                return@current
+            }
+            enqueue(op)
         }
     }
 
@@ -664,7 +766,7 @@ object HeroSignal {
             runCatching {
                 // Kayıt varsa `push_capable` sunucudakinden farklıysa PATCH edilir (false → abonelik `pending`).
                 if (subId != null) reconcileSubscription()
-                else if (granted) store.fcmToken?.let { registerSubscription(it) }
+                else if (granted) registerStoredToken()
             }.onFailure {
                 HsLog.w("izin sonrası abonelik güncellenemedi", it)
                 reportError("subscription_update_failed", "izin sonrası abonelik güncellenemedi", it)
@@ -715,11 +817,9 @@ object HeroSignal {
                     val tags = result.optJSONObject("tags") ?: JSONObject()
                     store.tags = tags.keys().asSequence().associateWith { tags.getString(it) }
                 }
-                store.fcmToken?.let { token ->
-                    runCatching { registerSubscription(token) }.onFailure {
-                        HsLog.w("abonelik kaydı başarısız", it)
-                        reportError("registration_failed", "push aboneliği kaydedilemedi", it)
-                    }
+                runCatching { registerStoredToken() }.onFailure {
+                    HsLog.w("abonelik kaydı başarısız", it)
+                    reportError("registration_failed", "push aboneliği kaydedilemedi", it)
                 }
             }
             inApp?.reset()
@@ -919,7 +1019,7 @@ object HeroSignal {
                 store.optedIn = true
                 scope.launch {
                     runCatching {
-                        if (store.subscriptionId != null) reconcileSubscription() else store.fcmToken?.let { registerSubscription(it) }
+                        if (store.subscriptionId != null) reconcileSubscription() else registerStoredToken()
                     }.onFailure { HsLog.w("opt-in sunucuya yazılamadı", it) }
                     notifySubscription()
                 }
@@ -1018,6 +1118,74 @@ object HeroSignal {
         /** Aynı grup anahtarına (`android_group`) sahip tüm bildirimleri ve grup özetini kaldırır. */
         @JvmStatic fun removeGroupedNotifications(group: String) {
             appContext?.let { HsNotificationTray.removeGroup(it, group) }
+        }
+    }
+
+    /**
+     * Konum paylaşımı (yalnızca ön plan; arka plan konumu kullanılmaz). Paylaşım açıkken oturum başında ve uygulama ön
+     * plana geldiğinde en sık 5 dakikada bir son bilinen/anlık konum `PATCH /subscriptions/{id}` (`location`) ile
+     * gönderilir; izin yoksa veya gizlilik onayı verilmediyse hiçbir şey gönderilmez. İlk gönderim sunucuda KVKK açık rıza
+     * kaydı sayılır. Uygulama manifest'ine `ACCESS_COARSE_LOCATION` (ve isteğe bağlı `ACCESS_FINE_LOCATION`) eklemelidir.
+     */
+    object Location {
+        const val PERMISSION_REQUEST_CODE = 0x484C
+
+        /** Kullanıcı konum paylaşımını açtı mı (kalıcı). */
+        @JvmStatic val isShared: Boolean get() = storage?.locationShared ?: false
+
+        /** Yaklaşık veya hassas konum izni verilmiş mi. */
+        @JvmStatic val permissionGranted: Boolean get() = appContext?.let { HsLocationProvider.permissionGranted(it) } ?: false
+
+        /**
+         * Paylaşımı açar/kapatır (kalıcı). Açınca (izin varsa) konum hemen gönderilir; kapatınca sunucuya `location: null`
+         * gönderilir (konum ve rıza kaydı silinir), henüz gönderilmemiş konum da atılır.
+         */
+        @JvmStatic fun setShared(shared: Boolean) {
+            val store = storage ?: return
+            val wasShared = store.locationShared
+            store.locationShared = shared
+            if (shared) {
+                if (isInForeground()) scope.launch { shareLocationIfDue() }
+                return
+            }
+            store.locationLastSharedAt = 0L
+            if (wasShared) HsLocationRules.op(null, System.currentTimeMillis())?.let(::enqueue)
+        }
+
+        /**
+         * Konum iznini ister: önce açıklama diyaloğu ([rationale]; null ise SDK'nın yerelleştirilmiş metni), kullanıcı
+         * devam ederse sistem izni (`ACCESS_COARSE_LOCATION`/`ACCESS_FINE_LOCATION`; manifest'te tanımlı olanlar). Arka
+         * plan konumu istenmez. Sonuç için Activity `onRequestPermissionsResult` içinden [onPermissionResult] çağrılmalıdır.
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun requestPermission(activity: Activity, rationale: String? = null) {
+            if (HsLocationProvider.permissionGranted(activity)) {
+                onPermissionResult()
+                return
+            }
+            val permissions = HsLocationProvider.declaredPermissions(activity)
+            if (permissions.isEmpty()) {
+                HsLog.w("konum izni istenemedi: uygulama manifest'inde ACCESS_COARSE_LOCATION/ACCESS_FINE_LOCATION yok")
+                return
+            }
+            activity.runOnUiThread {
+                if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                android.app.AlertDialog.Builder(activity)
+                    .setTitle(R.string.hs_location_rationale_title)
+                    .setMessage(rationale?.takeIf { it.isNotBlank() } ?: activity.getString(R.string.hs_location_rationale_message))
+                    .setPositiveButton(R.string.hs_location_rationale_continue) { _, _ ->
+                        ActivityCompat.requestPermissions(activity, permissions.toTypedArray(), PERMISSION_REQUEST_CODE)
+                    }
+                    .setNegativeButton(R.string.hs_location_rationale_not_now, null)
+                    .show()
+            }
+        }
+
+        /** Activity `onRequestPermissionsResult` içinden çağrılır; izin verildiyse ve paylaşım açıksa konum gönderilir (5 dakika sınırıyla). */
+        @JvmStatic fun onPermissionResult() {
+            if (!permissionGranted) return
+            scope.launch { shareLocationIfDue() }
         }
     }
 

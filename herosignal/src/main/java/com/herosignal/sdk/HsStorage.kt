@@ -9,7 +9,7 @@ import org.json.JSONObject
  * Cihazda kalıcı SDK durumu (SharedPreferences, app başına). İkincil kurucu birim testlerinde bellek içi
  * [SharedPreferences] ile kullanılır.
  */
-internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, HsSessionTracker.State {
+internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, HsSessionTracker.State, HsLocationRules.State {
     constructor(context: Context, appId: String) :
         this(context.applicationContext.getSharedPreferences("herosignal_$appId", Context.MODE_PRIVATE))
 
@@ -42,9 +42,20 @@ internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, H
         get() = prefs.getString(KEY_USER_JWT, null)
         set(value) = prefs.edit().putString(KEY_USER_JWT, value).apply()
 
+    /** Push sağlayıcısının son token'ı (FCM veya HMS; anahtar adı geriye dönük uyumluluk için korunur). */
     var fcmToken: String?
         get() = prefs.getString(KEY_FCM_TOKEN, null)
         set(value) = prefs.edit().putString(KEY_FCM_TOKEN, value).apply()
+
+    /** [fcmToken]'ın kanalı (`android_push`/`hms_push`); önceki sürümlerde yazılmadığından null = `android_push`. */
+    var pushTokenChannel: String?
+        get() = prefs.getString(KEY_PUSH_TOKEN_CHANNEL, null)
+        set(value) = prefs.edit().putString(KEY_PUSH_TOKEN_CHANNEL, value).apply()
+
+    /** Kayıtlı push aboneliğinin kanalı; null = `android_push` (önceki sürümler). Kanal değişirse abonelik yenilenir. */
+    var pushChannel: String?
+        get() = prefs.getString(KEY_PUSH_CHANNEL, null)
+        set(value) = prefs.edit().putString(KEY_PUSH_CHANNEL, value).apply()
 
     /** Sunucuya en son başarıyla kaydedilen token (değişiklik tespiti). */
     var registeredToken: String?
@@ -88,6 +99,16 @@ internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, H
     var serverOptedIn: Boolean?
         get() = if (prefs.contains(KEY_SERVER_OPTED_IN)) prefs.getBoolean(KEY_SERVER_OPTED_IN, true) else null
         set(value) = prefs.edit().apply { if (value == null) remove(KEY_SERVER_OPTED_IN) else putBoolean(KEY_SERVER_OPTED_IN, value) }.apply()
+
+    /** Kullanıcı konum paylaşımını açtı mı (`HeroSignal.Location.setShared`); kapalıyken konum toplanmaz. */
+    override var locationShared: Boolean
+        get() = prefs.getBoolean(KEY_LOCATION_SHARED, false)
+        set(value) = prefs.edit().putBoolean(KEY_LOCATION_SHARED, value).apply()
+
+    /** Son konum gönderiminin kuyruğa yazıldığı an (epoch ms; 0 = yok); en sık 5 dakikada bir sınırı için. */
+    override var locationLastSharedAt: Long
+        get() = prefs.getLong(KEY_LOCATION_LAST_SHARED_AT, 0L)
+        set(value) = prefs.edit().putLong(KEY_LOCATION_LAST_SHARED_AT, value).apply()
 
     /** Onay yokken yapılan login/logout sunucuya henüz yansıtılmadı; onay verilince eşitlenir. */
     var identitySyncPending: Boolean
@@ -150,6 +171,10 @@ internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, H
         const val KEY_USER_IDENTITY_HASH = "user_identity_hash"
         const val KEY_USER_JWT = "user_jwt"
         const val KEY_FCM_TOKEN = "fcm_token"
+        const val KEY_PUSH_TOKEN_CHANNEL = "push_token_channel"
+        const val KEY_PUSH_CHANNEL = "push_channel"
+        const val KEY_LOCATION_SHARED = "location_shared"
+        const val KEY_LOCATION_LAST_SHARED_AT = "location_last_shared_at"
         const val KEY_REGISTERED_TOKEN = "registered_token"
         const val KEY_OPTED_IN = "opted_in"
         const val KEY_CONSENT = "consent"
