@@ -13,11 +13,11 @@ class HsInAppInboxProofTest {
     @Test
     fun `in-app listesi kanit varsa token_hash ile istenir`() {
         assertEquals(
-            "/in-app?subscription_id=sub_push&token_hash=$pushHash",
+            "/in-app?subscription_id=sub_push&token_hash=$pushHash&supports=html,carousel",
             HsInAppController.listPath("sub_push", pushHash),
         )
-        // Kanıt yoksa (ör. eski kayıt) parametre eklenmez.
-        assertEquals("/in-app?subscription_id=sub+1", HsInAppController.listPath("sub 1", null))
+        // Kanıt yoksa (ör. eski kayıt) parametre eklenmez; içerik yetenekleri (ADR-0027) her zaman bildirilir.
+        assertEquals("/in-app?subscription_id=sub+1&supports=html,carousel", HsInAppController.listPath("sub 1", null))
     }
 
     @Test

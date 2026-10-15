@@ -2,6 +2,7 @@
 <resources>
     <string name="hs_in_app_close">Kapat</string>
     <string name="hs_in_app_message">Mesaj</string>
+    <string name="hs_in_app_carousel_card">Kart %1$d/%2$d: %3$s</string>
     <string name="hs_location_rationale_title">Konumunuzu paylaşın</string>
     <string name="hs_location_rationale_message">Yakınınızdaki ilgili bildirimleri gönderebilmek için yaklaşık konumunuzu yalnızca uygulama açıkken kullanırız. Bu ayarı istediğiniz zaman kapatabilirsiniz.</string>
     <string name="hs_location_rationale_continue">Devam</string>

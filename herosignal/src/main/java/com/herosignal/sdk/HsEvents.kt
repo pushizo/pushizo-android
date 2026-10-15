@@ -19,6 +19,8 @@ internal object HsEvents {
                 .put("occurred_at", e.getString("occurred_at"))
                 .put("subscription_id", subscriptionId)
             if (e.has("value")) event.put("value", e.getDouble("value"))
+            // İstemci olay kimliği: yeniden denemede sunucu aynı olayı ikinci kez kaydetmez (eski kuyruk öğelerinde yok).
+            e.optString("event_id").takeIf { it.isNotEmpty() }?.let { event.put("event_id", it) }
             tokenHash?.let { event.put("token_hash", it) }
             identityHash?.let { event.put("identity_hash", it) }
             events.put(event)

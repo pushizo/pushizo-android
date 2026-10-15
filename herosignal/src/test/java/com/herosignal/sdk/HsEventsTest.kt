@@ -31,6 +31,14 @@ class HsEventsTest {
     }
 
     @Test
+    fun `istemci event_id varsa iletilir, eski kuyruk ogesinde gonderilmez`() {
+        val withId = HsEvents.items(listOf(eventOp("view").put("event_id", "e-123456789")), "sub_1", null, null).getJSONObject(0)
+        assertEquals("e-123456789", withId.getString("event_id"))
+        val legacy = HsEvents.items(listOf(eventOp("view")), "sub_1", null, null).getJSONObject(0)
+        assertFalse(legacy.has("event_id"))
+    }
+
+    @Test
     fun `kanit yoksa alanlar gonderilmez`() {
         val item = HsEvents.items(listOf(eventOp("view")), "sub_1", null, null).getJSONObject(0)
         assertFalse(item.has("token_hash"))

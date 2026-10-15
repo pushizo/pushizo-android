@@ -46,6 +46,29 @@ sealed class HsInAppBlock {
         val backgroundColor: String?,
         val textColor: String?,
     ) : HsInAppBlock()
+
+    /** Yatay kaydırmalı kartlar (v2 Faz 18); kart düğmeleri [HsInAppDisplay.buttons] içinde yer alır. */
+    data class Carousel(val id: String, val cards: List<HsInAppCarouselCard>) : HsInAppBlock()
+}
+
+/** Carousel kartı; [button] geçersiz aksiyonlu ise null (kart yine gösterilir). */
+data class HsInAppCarouselCard(
+    val id: String,
+    val title: String,
+    val body: String?,
+    val imageUrl: String?,
+    val imageAlt: String?,
+    val button: HsInAppBlock.Button?,
+)
+
+/** Mesaj içeriğinin biçimi: yerel bloklar veya yalıtılmış WebView'da çizilen HTML (ADR-0027). */
+enum class HsInAppContentType(val wire: String) {
+    BLOCKS("blocks"), HTML("html");
+
+    companion object {
+        /** Alan yoksa veya tanınmıyorsa bloklar (eski sunucu uyumu). */
+        fun from(value: String?): HsInAppContentType = if (value == HTML.wire) HTML else BLOCKS
+    }
 }
 
 enum class HsInAppLayout(val wire: String) {
@@ -64,8 +87,23 @@ data class HsInAppDisplay(
     val dismissible: Boolean,
     val autoDismissSeconds: Int?,
     val blocks: List<HsInAppBlock>,
+    /** [HsInAppContentType.HTML] ise [blocks] boştur ve içerik [html] alanındadır. */
+    val contentType: HsInAppContentType = HsInAppContentType.BLOCKS,
+    /** Kullanıcının dilinde, kişiselleştirilmiş HTML (yalnızca HTML içerikte). */
+    val html: String? = null,
+    /** Banner/modal için ilk yükseklik (CSS px ≙ dp); köprünün `resize` bildirimiyle güncellenir. */
+    val htmlHeight: Int? = null,
 ) {
-    val buttons: List<HsInAppBlock.Button> get() = blocks.filterIsInstance<HsInAppBlock.Button>()
+    /** Düğme blokları ve carousel kartlarının düğmeleri (tıklama bildirimi bu listeden çözülür). */
+    val buttons: List<HsInAppBlock.Button> get() = blocks.flatMap { block ->
+        when (block) {
+            is HsInAppBlock.Button -> listOf(block)
+            is HsInAppBlock.Carousel -> block.cards.mapNotNull { it.button }
+            else -> emptyList()
+        }
+    }
+
+    val isHtml: Boolean get() = contentType == HsInAppContentType.HTML
 }
 
 /**
@@ -87,6 +125,8 @@ data class HsInAppMessage(
     val lastImpressionAt: Long?,
     val endAt: Long?,
     private val json: String,
+    /** Sunucunun içeriği çözdüğü dil (liste yanıtındaki `language`); HTML belgesinin `lang` özniteliği. */
+    val language: String? = null,
 ) {
     /** Sunucudaki ham JSON (özel çizim katmanları, ör. Flutter köprüsü için). */
     fun toJson(): String = json
@@ -110,16 +150,24 @@ interface HsInAppLifecycleListener {
 internal object HsInAppParser {
     fun parseList(json: JSONObject): List<HsInAppMessage> {
         val data = json.optJSONArray("data") ?: return emptyList()
+        val language = json.optStringOrNull("language")
         return (0 until data.length()).mapNotNull { i ->
             data.optJSONObject(i)?.let { item ->
-                runCatching { parseMessage(item) }.onFailure { HsLog.w("in-app mesajı ayrıştırılamadı", it) }.getOrNull()
+                runCatching { parseMessage(item, language) }.onFailure { HsLog.w("in-app mesajı ayrıştırılamadı", it) }.getOrNull()
             }
         }
     }
 
-    fun parseMessage(item: JSONObject): HsInAppMessage {
+    fun parseMessage(item: JSONObject): HsInAppMessage = parseMessage(item, null)
+
+    /** [language]: liste yanıtındaki içerik dili (HTML belgesinin `lang` özniteliği). */
+    fun parseMessage(item: JSONObject, language: String?): HsInAppMessage {
         val display = item.getJSONObject("display")
         val groups = parseTriggerGroups(item.optJSONArray("trigger_groups"), item.optJSONArray("triggers") ?: JSONArray())
+        val contentType = HsInAppContentType.from(display.optStringOrNull("content_type"))
+        val html = display.optStringOrNull("html")
+        // HTML türünde içerik yoksa gösterilecek bir şey yoktur: mesaj atlanır.
+        require(contentType != HsInAppContentType.HTML || !html.isNullOrBlank()) { "HTML in-app içeriği boş" }
         return HsInAppMessage(
             id = item.getString("id"),
             priority = item.optInt("priority", 0),
@@ -132,7 +180,10 @@ internal object HsInAppParser {
                 textColor = display.optStringOrNull("text_color"),
                 dismissible = display.optBoolean("dismissible", true),
                 autoDismissSeconds = if (display.isNull("auto_dismiss_seconds")) null else display.optInt("auto_dismiss_seconds").takeIf { it > 0 },
-                blocks = parseBlocks(display.optJSONArray("blocks") ?: JSONArray()),
+                blocks = if (contentType == HsInAppContentType.HTML) emptyList() else parseBlocks(display.optJSONArray("blocks") ?: JSONArray()),
+                contentType = contentType,
+                html = if (contentType == HsInAppContentType.HTML) html else null,
+                htmlHeight = if (contentType != HsInAppContentType.HTML || display.isNull("html_height")) null else display.optInt("html_height").takeIf { it > 0 },
             ),
             remainingImpressions = item.optInt("remaining_impressions", 1),
             minIntervalSeconds = item.optLong("min_interval_seconds", 0),
@@ -140,6 +191,7 @@ internal object HsInAppParser {
             lastImpressionAt = item.optStringOrNull("last_impression_at")?.let(HsIsoTime::parse),
             endAt = item.optStringOrNull("end_at")?.let(HsIsoTime::parse),
             json = item.toString(),
+            language = language,
         )
     }
 
@@ -184,9 +236,34 @@ internal object HsInAppParser {
                     textColor = b.optStringOrNull("text_color"),
                 )
             }
+            "carousel" -> parseCarousel(b)
             // Tanınmayan blok türü atlanır (ileri uyumluluk).
             else -> null
         }
+    }
+
+    /** Kimliksiz veya kartsız carousel atlanır; kimliksiz kart atlanır, geçersiz kart düğmesi yalnızca düğmeyi düşürür. */
+    private fun parseCarousel(b: JSONObject): HsInAppBlock.Carousel? {
+        val id = b.optStringOrNull("id") ?: return null
+        val arr = b.optJSONArray("cards") ?: return null
+        val cards = (0 until arr.length()).mapNotNull { i ->
+            val c = arr.optJSONObject(i) ?: return@mapNotNull null
+            val cardId = c.optStringOrNull("id") ?: return@mapNotNull null
+            val button = c.optJSONObject("button")?.let { btn ->
+                val buttonId = btn.optStringOrNull("id") ?: return@let null
+                val action = parseAction(btn.optJSONObject("action")) ?: return@let null
+                HsInAppBlock.Button(buttonId, btn.optString("text"), action, backgroundColor = null, textColor = null)
+            }
+            HsInAppCarouselCard(
+                id = cardId,
+                title = if (c.isNull("title")) "" else c.optString("title"),
+                body = c.optStringOrNull("body"),
+                imageUrl = c.optStringOrNull("image_url"),
+                imageAlt = c.optStringOrNull("image_alt"),
+                button = button,
+            )
+        }
+        return if (cards.isEmpty()) null else HsInAppBlock.Carousel(id, cards)
     }
 
     private fun parseAction(a: JSONObject?): HsInAppAction? {

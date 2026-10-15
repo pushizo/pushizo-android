@@ -12,10 +12,13 @@ import org.json.JSONObject
 import java.net.URLEncoder
 import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * In-app mesajı çizen katman. Varsayılan: geçerli Activity üstünde Dialog ([HsInAppDialogRenderer]).
  * Özel çizim (ör. Flutter köprüsü) [HeroSignal.InAppMessages.setRenderer] ile kaydedilir. Ana iş parçacığında çağrılır.
+ * HTML içerikli mesajlar ([HsInAppDisplay.isHtml]) özel çizime verilmez: yalıtım ve köprü doğrulaması (ADR-0027)
+ * yalnızca varsayılan çizimin WebView'ında uygulandığından her zaman varsayılan çizimle gösterilir.
  */
 interface HsInAppRenderer {
     /** Mesajı gösterir; etkileşimler [handle] ile bildirilir. false → gösterilemedi (mesaj atlanır). */
@@ -52,6 +55,37 @@ class HsInAppHandle internal constructor(private val controller: HsInAppControll
         if (finished.compareAndSet(false, true)) controller.onClosed(this)
     }
 
+    /** HTML köprüsü `click(actionId, url)`: tıklama olayı (`button_id` = [actionId]), dinleyiciler, adres açma, kapanış. */
+    internal fun htmlClicked(actionId: String, url: String?) {
+        if (finished.get() || !interacted.compareAndSet(false, true)) return
+        controller.onHtmlClicked(this, actionId, url)
+    }
+
+    /** HTML köprüsü `addTag`; mesaj açık kalır. */
+    internal fun htmlAddTag(key: String, value: String) {
+        if (finished.get() || !allowSideEffect()) return
+        controller.onHtmlAddTag(key, value)
+    }
+
+    /** HTML köprüsü `trackEvent`; mesaj açık kalır. */
+    internal fun htmlTrackEvent(name: String, properties: Map<String, Any?>) {
+        if (finished.get() || !allowSideEffect()) return
+        controller.onHtmlTrackEvent(name, properties)
+    }
+
+    /** Döngüdeki bir HTML betiği kuyruğu doldurmasın: tek gösterimde en fazla [MAX_HTML_SIDE_EFFECTS] tag/olay. */
+    private val sideEffects = AtomicInteger(0)
+
+    private fun allowSideEffect(): Boolean {
+        if (sideEffects.incrementAndGet() <= MAX_HTML_SIDE_EFFECTS) return true
+        HsLog.w("HTML in-app köprüsü: gösterim başına tag/olay sınırı aşıldı, istek yok sayıldı")
+        return false
+    }
+
+    private companion object {
+        const val MAX_HTML_SIDE_EFFECTS = 50
+    }
+
     /** willDismiss bir kez; kapatma isteği çizim katmanına iletilir. */
     internal fun requestClose() {
         if (closing.compareAndSet(false, true)) controller.onWillDismiss(this)
@@ -75,6 +109,8 @@ internal class HsInAppController(private val host: Host) {
         fun addTags(tags: Map<String, String>)
         /** `outcome` aksiyonu: olay SDK'nın olay API'siyle gönderilir. */
         fun sendEvent(name: String, value: Double?)
+        /** HTML köprüsü `trackEvent`: olay özellikleriyle SDK'nın olay API'sine gönderilir. */
+        fun trackEvent(name: String, properties: Map<String, Any?>)
         /** `push_prompt` aksiyonu: yerel bildirim izni istemi (Activity yoksa istenemez). */
         fun requestPushPermission(activity: Activity?)
         fun runInBackground(block: () -> Unit)
@@ -109,7 +145,9 @@ internal class HsInAppController(private val host: Host) {
 
     fun setRenderer(renderer: HsInAppRenderer?) { customRenderer = renderer }
 
-    private fun renderer(): HsInAppRenderer? = customRenderer ?: defaultRenderer()
+    /** HTML mesajı her zaman varsayılan (yalıtılmış WebView) çizimle gösterilir; diğerleri varsa özel çizimle. */
+    private fun renderer(message: HsInAppMessage): HsInAppRenderer? =
+        if (message.display.isHtml) defaultRenderer() else customRenderer ?: defaultRenderer()
 
     /** Varsayılan çizim katmanı; özel çizimde de Activity takibi (aksiyon intent'leri, izin istemi) için kurulur. */
     private fun defaultRenderer(): HsInAppDialogRenderer? {
@@ -250,7 +288,7 @@ internal class HsInAppController(private val host: Host) {
             if (current != null) return
             HsInAppHandle(this, message).also { current = it }
         }
-        val renderer = renderer()
+        val renderer = renderer(message)
         lifecycleListeners.forEach { it.onWillDisplay(HsInAppLifecycleEvent(message)) }
         val shown = renderer != null && runCatching { renderer.show(message, handle) }.onFailure {
             HsLog.w("in-app mesajı gösterilemedi", it)
@@ -302,6 +340,26 @@ internal class HsInAppController(private val host: Host) {
         }
     }
 
+    /** HTML köprüsü tıklaması: düğme tıklamasıyla aynı olay ve dinleyiciler; http(s) tarayıcıda, diğer şema deeplink. */
+    fun onHtmlClicked(handle: HsInAppHandle, actionId: String, url: String?) {
+        val message = handle.message
+        markInteracted(message.id)
+        record(message, "click", actionId)
+        main.post {
+            clickListeners.forEach { runCatching { it(HsInAppClickEvent(message.id, actionId, url)) } }
+            if (url != null) open(url, inApp = !HsHtmlBridge.isWebUrl(url))
+            close(handle)
+        }
+    }
+
+    fun onHtmlAddTag(key: String, value: String) {
+        main.post { host.addTags(mapOf(key to value)) }
+    }
+
+    fun onHtmlTrackEvent(name: String, properties: Map<String, Any?>) {
+        main.post { host.trackEvent(name, properties) }
+    }
+
     fun onDismissed(handle: HsInAppHandle) {
         markInteracted(handle.message.id)
         record(handle.message, "dismiss", null)
@@ -310,7 +368,7 @@ internal class HsInAppController(private val host: Host) {
 
     private fun close(handle: HsInAppHandle) {
         handle.requestClose()
-        val renderer = renderer() ?: return handle.closed()
+        val renderer = renderer(handle.message) ?: return handle.closed()
         runCatching { renderer.close(handle.message.id) }.onFailure { handle.closed() }
     }
 
@@ -373,10 +431,14 @@ internal class HsInAppController(private val host: Host) {
         const val SESSION_REFRESH_MIN_AGE_MS = 30_000L
         const val SESSION_START_WINDOW_MS = 60_000L
 
+        /** SDK'nın çizebildiği içerik yetenekleri (ADR-0027); bildirilmezse sunucu HTML mesaj ve carousel göndermez. */
+        internal const val SUPPORTS = "html,carousel"
+
         /** `GET /in-app` yolu; sahiplik kanıtı (ADR-0016) varsa `token_hash` eklenir. */
         internal fun listPath(subscriptionId: String, tokenHash: String?): String =
             "/in-app?subscription_id=${URLEncoder.encode(subscriptionId, "UTF-8")}" +
-                (tokenHash?.let { "&token_hash=${URLEncoder.encode(it, "UTF-8")}" } ?: "")
+                (tokenHash?.let { "&token_hash=${URLEncoder.encode(it, "UTF-8")}" } ?: "") +
+                "&supports=$SUPPORTS"
 
         /** Kuyruktaki olaydan `POST /in-app/{id}/events` gövdesi; kanıt gönderim anındaki abonelikten çözülür. */
         internal fun eventBody(op: JSONObject, subscriptionId: String, tokenHash: String?): JSONObject {
