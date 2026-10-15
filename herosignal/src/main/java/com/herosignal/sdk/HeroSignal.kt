@@ -73,7 +73,12 @@ data class HsPushSubscriptionState(val id: String?, val token: String?, val opte
  */
 object HeroSignal {
     data class Options(
-        val apiUrl: String = "https://api.herosignal.dev",
+        /**
+         * API kökü. Varsayılan (global) değerde bırakılırsa SDK app yapılandırmasındaki bölgesel adresi (`api_url`)
+         * öğrenip kullanır; başka bir değer verilirse korunur (yalnızca sunucu 421 `HS_WRONG_CELL` ile başka bölgeyi
+         * gösterirse oraya geçilir). Ayrıntı: docs/sdk/android.md.
+         */
+        val apiUrl: String = HsCellRouting.DEFAULT_API_URL,
         /** KVKK/GDPR: onay verilene kadar ağ çağrısı yapılmaz. */
         val requiresPrivacyConsent: Boolean = false,
         val logLevel: HsLog.Level = HsLog.Level.WARN,
@@ -202,7 +207,34 @@ object HeroSignal {
     }
 
     /** SDK istemcisi; kimlik JWT'si her istekte depodan okunur (ADR-0023 §9). */
-    private fun createApi(apiUrl: String) = HsApi(apiUrl, appId, networkAllowed = ::networkAllowed, identityToken = { storage?.userJwt })
+    private fun createApi(apiUrl: String): HsApi {
+        val seed = apiUrl.trimEnd('/')
+        val store = storage
+        // Daha önce öğrenilen bölgesel kök aynı başlangıç kökü için kullanılır (ADR-0032 §4).
+        val base = HsCellRouting.initialBase(seed, store?.regionalApiSeed, store?.regionalApiUrl)
+        return HsApi(
+            base,
+            appId,
+            networkAllowed = ::networkAllowed,
+            identityToken = { storage?.userJwt },
+            onApiUrlChange = { url -> storage?.saveRegionalApi(seed, url) },
+        )
+    }
+
+    /**
+     * Config `api_url`: `Options.apiUrl` varsayılan (global) kökteyse app'in bölgesel API kökü benimsenir ve saklanır.
+     * Geliştiricinin verdiği özel kök (kendi alan adı/vekil sunucu) korunur.
+     */
+    private fun adoptRegionalApiUrl(config: JSONObject) {
+        val api = api ?: return
+        val seed = options.apiUrl.trimEnd('/')
+        if (seed != HsCellRouting.DEFAULT_API_URL) return
+        val next = HsCellRouting.acceptApiUrl(config.opt("api_url"), api.apiUrl) ?: return
+        if (next == api.apiUrl) return
+        HsLog.i("bölgesel API kökü kullanılıyor: $next")
+        api.updateApiUrl(next)
+        storage?.saveRegionalApi(seed, next)
+    }
 
     private fun onMain(block: () -> Unit) {
         if (Looper.myLooper() == Looper.getMainLooper()) block() else mainHandler.post(block)
@@ -291,6 +323,7 @@ object HeroSignal {
      * bildirim kanalları (`android_channels` → `NotificationChannel`; ADR-0019 §7, §12).
      */
     private fun applyConfig(config: JSONObject) {
+        adoptRegionalApiUrl(config)
         identityVerificationRequired = config.optBoolean("identity_verification_required", false)
         identityVerificationMode = HsIdentityVerificationMode.fromConfig(config)
         val interval = config.optJSONObject("in_app")?.optLong("min_interval_seconds", 0L)?.coerceAtLeast(0L) ?: 0L
