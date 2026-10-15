@@ -3,4 +3,9 @@
     <!-- In-app mesaj erişilebilirlik etiketleri (uygulama aynı adla ezebilir). -->
     <string name="hs_in_app_close">Close</string>
     <string name="hs_in_app_message">Message</string>
+    <!-- Konum izni açıklama diyaloğu (HeroSignal.Location.requestPermission; uygulama aynı adla ezebilir). -->
+    <string name="hs_location_rationale_title">Share your location</string>
+    <string name="hs_location_rationale_message">We use your approximate location only while the app is open, to send you relevant nearby notifications. You can turn this off at any time.</string>
+    <string name="hs_location_rationale_continue">Continue</string>
+    <string name="hs_location_rationale_not_now">Not now</string>
 </resources>

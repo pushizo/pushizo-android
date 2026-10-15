@@ -28,13 +28,14 @@ class HeroSignalMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         HsLog.d("FCM token yenilendi")
         // Uygulama kodu çalışmadan başlayan süreçte SDK son initialize yapılandırmasıyla başlatılır.
-        if (HeroSignal.ensureInitialized(applicationContext)) HeroSignal.onNewToken(token)
+        HsPushBridge.onNewToken(applicationContext, HsPushProviders.CHANNEL_FCM, token)
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
-        if (!HsNotification.isHeroSignal(message.data) && message.notification == null) return // HeroSignal dışı veri mesajı
-        val n = HsNotification.fromFcm(
+        handle(
+            context = applicationContext,
             data = message.data,
+            hasNotification = message.notification != null,
             title = message.notification?.title,
             body = message.notification?.body,
             imageUrl = message.notification?.imageUrl?.toString(),
@@ -42,25 +43,43 @@ class HeroSignalMessagingService : FirebaseMessagingService() {
             collapseKey = message.notification?.tag,
             channelId = message.notification?.channelId,
         )
-        if (n.deliveryId == null && n.title == null && n.body == null) return // HeroSignal dışı mesaj
-        // Uygulama kapalıyken (ör. Flutter motoru çalışmıyorken) gelen mesajın `received` bildirimi kaybolmasın diye
-        // SDK kayıtlı yapılandırmayla başlatılır.
-        val initialized = HeroSignal.ensureInitialized(applicationContext)
-        n.deliveryId?.let { if (initialized) HeroSignal.reportReceived(it) }
-        if (n.silent) return // sessiz mesaj: gösterilmez
-        if (n.title == null && n.body == null) return // gösterilecek içerik yok
-
-        val inForeground = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
-        if (inForeground && HeroSignal.isInitialized) {
-            val event = HeroSignal.dispatchForeground(n)
-            // Engellenmediyse ve dinleyici display() ile zaten göstermediyse şimdi gösterilir.
-            if (!event.prevented && event.markDisplayed()) show(applicationContext, n)
-            return
-        }
-        show(applicationContext, n)
     }
 
     companion object {
+        /**
+         * Push mesajı işleme (FCM ve HMS veri mesajları için ortak): `received` bildirir, ön plan dinleyicilerine sorar ve
+         * bildirimi gösterir. `notification` bloğu değerleri yalnızca eski FCM payload'larında gelir.
+         */
+        internal fun handle(
+            context: Context,
+            data: Map<String, String>,
+            hasNotification: Boolean = false,
+            title: String? = null,
+            body: String? = null,
+            imageUrl: String? = null,
+            collapseKey: String? = null,
+            channelId: String? = null,
+        ) {
+            if (!HsNotification.isHeroSignal(data) && !hasNotification) return // HeroSignal dışı veri mesajı
+            val n = HsNotification.fromFcm(data, title, body, imageUrl, collapseKey, channelId)
+            if (n.deliveryId == null && n.title == null && n.body == null) return // HeroSignal dışı mesaj
+            // Uygulama kapalıyken (ör. Flutter motoru çalışmıyorken) gelen mesajın `received` bildirimi kaybolmasın diye
+            // SDK kayıtlı yapılandırmayla başlatılır.
+            val initialized = HeroSignal.ensureInitialized(context)
+            n.deliveryId?.let { if (initialized) HeroSignal.reportReceived(it) }
+            if (n.silent) return // sessiz mesaj: gösterilmez
+            if (n.title == null && n.body == null) return // gösterilecek içerik yok
+
+            val inForeground = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+            if (inForeground && HeroSignal.isInitialized) {
+                val event = HeroSignal.dispatchForeground(n)
+                // Engellenmediyse ve dinleyici display() ile zaten göstermediyse şimdi gösterilir.
+                if (!event.prevented && event.markDisplayed()) show(context, n)
+                return
+            }
+            show(context, n)
+        }
+
         fun show(context: Context, n: HsNotification) {
             val channelId = n.channelId ?: HeroSignal.options.defaultChannelId
             val soundUri = soundUri(context, n.sound)

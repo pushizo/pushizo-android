@@ -45,13 +45,23 @@ internal sealed class HsTokenSyncResult {
     /** Mevcut aboneliğin token'ı `PATCH` ile güncellendi. */
     object Updated : HsTokenSyncResult()
 
-    /** Yeni abonelik oluşturuldu (`POST subscriptions`). */
-    data class Created(val subscriptionId: String, val userId: String, val externalId: String?) : HsTokenSyncResult()
+    /**
+     * Yeni abonelik oluşturuldu (`POST subscriptions`). Push kanalı değiştiyse (ör. FCM → HMS) eski abonelik
+     * [replacedSubscriptionId] olarak döner; çağıran onu (kayıtlı eski token'ın özetiyle) siler.
+     */
+    data class Created(
+        val subscriptionId: String,
+        val userId: String,
+        val externalId: String?,
+        val replacedSubscriptionId: String? = null,
+    ) : HsTokenSyncResult()
 }
 
 /**
  * Token yaşam döngüsü (docs/plan/06): kayıtlı abonelik varsa token değişikliğinde yeni abonelik açılmaz,
  * `PATCH subscriptions/{id}` ile token yerinde güncellenir. Abonelik sunucuda silinmişse (404) yeniden oluşturulur.
+ * Push kanalı değiştiyse (`android_push` ↔ `hms_push`; kanal PATCH ile değiştirilemez) yeni kanalda abonelik açılır ve
+ * eski abonelik [HsTokenSyncResult.Created.replacedSubscriptionId] ile bildirilir: cihazda tek push aboneliği kalır.
  * Ağ katmanından bağımsızdır (JVM birim testinde sahte istekçi ile sınanır).
  */
 internal class HsTokenSync(private val request: (method: String, path: String, body: JSONObject?) -> JSONObject) {
@@ -62,10 +72,21 @@ internal class HsTokenSync(private val request: (method: String, path: String, b
         token: String,
         device: JSONObject,
         user: JSONObject,
-        channel: String = "android_push",
+        channel: String = HsPushProviders.CHANNEL_FCM,
+        /** Kayıtlı aboneliğin kanalı (null: önceki sürüm kaydı, `android_push`). */
+        registeredChannel: String? = channel,
     ): HsTokenSyncResult {
         require(token.isNotBlank()) { "boş token kaydedilemez" }
-        if (subscriptionId != null && registeredToken == token) return HsTokenSyncResult.Unchanged
+        val channelChanged = subscriptionId != null && (registeredChannel ?: HsPushProviders.CHANNEL_FCM) != channel
+        if (subscriptionId != null && !channelChanged && registeredToken == token) return HsTokenSyncResult.Unchanged
+        if (subscriptionId != null && channelChanged) {
+            // Anonim cihazda yeni abonelik eski aboneliğin kullanıcısına bağlanır (kanıt: eski token'ın özeti).
+            if (!user.has("external_id") && !user.has("subscription_id") && registeredToken != null) {
+                user.put("subscription_id", subscriptionId).put("token_hash", HsOwnership.tokenHash(registeredToken))
+            }
+            val created = create(channel, token, device, user)
+            return created.copy(replacedSubscriptionId = subscriptionId)
+        }
         if (subscriptionId != null) {
             try {
                 // Kanıt: sunucudaki (eski) token'ın özeti; yeni token bu istekle kaydedilir.
@@ -77,6 +98,10 @@ internal class HsTokenSync(private val request: (method: String, path: String, b
                 // Abonelik sunucuda yok: aşağıda yeniden oluşturulur.
             }
         }
+        return create(channel, token, device, user)
+    }
+
+    private fun create(channel: String, token: String, device: JSONObject, user: JSONObject): HsTokenSyncResult.Created {
         val body = JSONObject()
             .put("channel", channel)
             .put("token", token)
