@@ -15,12 +15,15 @@ class HsApiException(val status: Int, val code: String, message: String) : IOExc
  * `/sdk/v1/apps/{appId}` uçlarına JSON istek (HttpURLConnection; ek bağımlılık yok).
  * [networkAllowed] false iken (KVKK/GDPR onayı bekleniyor/geri alındı) hiçbir istek bağlantı açmadan
  * `CONSENT_REQUIRED` (yeniden denenebilir) ile reddedilir; kuyruktaki işlemler bu sayede kaybolmaz.
+ * [identityToken] kimlik JWT'sini (ADR-0023 §9) verir; her istekte yeniden okunur, varsa `Authorization: Bearer`
+ * başlığıyla gider. Belirteç gövdeye/URL'ye yazılmaz ve loglanmaz.
  */
 internal class HsApi(
     private val apiUrl: String,
     private val appId: String,
     private val timeoutMs: Int = 15_000,
     private val networkAllowed: () -> Boolean = { true },
+    private val identityToken: () -> String? = { null },
 ) {
     private val base: String get() = "${apiUrl.trimEnd('/')}/sdk/v1/apps/${URLEncoder.encode(appId, "UTF-8")}"
 
@@ -43,6 +46,7 @@ internal class HsApi(
             readTimeout = timeoutMs
             setRequestProperty("Accept", "application/json")
             setRequestProperty("User-Agent", "herosignal-android/${BuildConfig.SDK_VERSION}")
+            authorizationHeader(identityToken())?.let { setRequestProperty(AUTHORIZATION_HEADER, it) }
             if (body != null) {
                 doOutput = true
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
@@ -75,6 +79,7 @@ internal class HsApi(
         private const val MAX_RETRIES = 3
         private val BACKOFF_MS = longArrayOf(500, 1500, 4000)
         const val METHOD_OVERRIDE_HEADER = "X-HTTP-Method-Override"
+        const val AUTHORIZATION_HEADER = "Authorization"
         /** Onay kapısı kapalıyken dönen hata kodu (ağ bağlantısı açılmaz). */
         const val CONSENT_REQUIRED = "CONSENT_REQUIRED"
 
@@ -87,5 +92,8 @@ internal class HsApi(
          */
         fun wireMethod(method: String): Pair<String, String?> =
             if (method in OVERRIDDEN_METHODS) "POST" to method else method to null
+
+        /** Kimlik JWT'si varsa `Bearer <jwt>`; boş/yoksa başlık eklenmez. */
+        fun authorizationHeader(jwt: String?): String? = jwt?.takeIf { it.isNotBlank() }?.let { "Bearer $it" }
     }
 }

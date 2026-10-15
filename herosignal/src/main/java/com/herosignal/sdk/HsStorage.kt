@@ -5,10 +5,13 @@ import android.content.SharedPreferences
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Cihazda kalıcı SDK durumu (SharedPreferences, app başına). */
-internal class HsStorage(context: Context, appId: String) : HsQueueStore, HsSessionTracker.State {
-    private val prefs: SharedPreferences =
-        context.applicationContext.getSharedPreferences("herosignal_$appId", Context.MODE_PRIVATE)
+/**
+ * Cihazda kalıcı SDK durumu (SharedPreferences, app başına). İkincil kurucu birim testlerinde bellek içi
+ * [SharedPreferences] ile kullanılır.
+ */
+internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, HsSessionTracker.State {
+    constructor(context: Context, appId: String) :
+        this(context.applicationContext.getSharedPreferences("herosignal_$appId", Context.MODE_PRIVATE))
 
     var subscriptionId: String?
         get() = prefs.getString(KEY_SUBSCRIPTION_ID, null)
@@ -30,6 +33,14 @@ internal class HsStorage(context: Context, appId: String) : HsQueueStore, HsSess
     var userIdentityHash: String?
         get() = prefs.getString(KEY_USER_IDENTITY_HASH, null)
         set(value) = prefs.edit().putString(KEY_USER_IDENTITY_HASH, value).apply()
+
+    /**
+     * Login'de veya `updateUserJwt` ile verilen kimlik JWT'si (ADR-0023 §9). Uygulamaya özel depoda (MODE_PRIVATE)
+     * identity hash ile aynı biçimde saklanır; yalnızca `Authorization` başlığına eklenir, logout ile silinir.
+     */
+    var userJwt: String?
+        get() = prefs.getString(KEY_USER_JWT, null)
+        set(value) = prefs.edit().putString(KEY_USER_JWT, value).apply()
 
     var fcmToken: String?
         get() = prefs.getString(KEY_FCM_TOKEN, null)
@@ -127,6 +138,7 @@ internal class HsStorage(context: Context, appId: String) : HsQueueStore, HsSess
     /** Kimlik temizliği; e-posta/SMS abonelikleri önceki kullanıcıda kalır, cihazdaki eşlemeleri silinir. */
     fun clearIdentity() {
         prefs.edit().remove(KEY_USER_ID).remove(KEY_EXTERNAL_ID).remove(KEY_TAGS).remove(KEY_IDENTITY_HASH).remove(KEY_USER_IDENTITY_HASH)
+            .remove(KEY_USER_JWT)
             .remove(contactKey("email")).remove(contactKey("sms")).apply()
     }
 
@@ -136,6 +148,7 @@ internal class HsStorage(context: Context, appId: String) : HsQueueStore, HsSess
         const val KEY_EXTERNAL_ID = "external_id"
         const val KEY_IDENTITY_HASH = "identity_hash"
         const val KEY_USER_IDENTITY_HASH = "user_identity_hash"
+        const val KEY_USER_JWT = "user_jwt"
         const val KEY_FCM_TOKEN = "fcm_token"
         const val KEY_REGISTERED_TOKEN = "registered_token"
         const val KEY_OPTED_IN = "opted_in"

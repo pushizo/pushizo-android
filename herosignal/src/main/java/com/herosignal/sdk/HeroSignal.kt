@@ -65,6 +65,7 @@ data class HsPushSubscriptionState(val id: String?, val token: String?, val opte
  * HeroSignal.Notifications.requestPermission(activity)
  * HeroSignal.Notifications.addPermissionObserver { granted -> }
  * HeroSignal.login("user_42")
+ * HeroSignal.login("user_42", jwt = jwtFromYourServer) // identity verification `jwt`/`both`
  * HeroSignal.User.addTag("plan", "pro")
  * HeroSignal.User.addEmail("ali@example.com")
  * HeroSignal.InAppMessages.addTrigger("level", "gold")
@@ -102,6 +103,7 @@ object HeroSignal {
     private val registrationLock = Any()
     private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
     @Volatile private var identityVerificationRequired = false
+    @Volatile private var identityVerificationMode = HsIdentityVerificationMode.HMAC
     @Volatile private var pendingClick: HsClickEvent? = null
     @Volatile private var inApp: HsInAppController? = null
 
@@ -151,7 +153,7 @@ object HeroSignal {
         HsLog.level = options.logLevel
         val store = HsStorage(context, appId)
         storage = store
-        api = HsApi(options.apiUrl, appId, networkAllowed = ::networkAllowed)
+        api = createApi(options.apiUrl)
         errorReporter = HsErrorReporter("android", BuildConfig.SDK_VERSION)
         queue = HsQueue(store, { op -> perform(op) }, { op, e ->
             reportError("operation_rejected", "kuyruk işlemi sunucu tarafından reddedildi", e, mapOf("operation" to op.optString("type")))
@@ -192,9 +194,12 @@ object HeroSignal {
         val wasAllowed = networkAllowed()
         options = newOptions
         HsLog.level = newOptions.logLevel
-        api = HsApi(newOptions.apiUrl, appId, networkAllowed = ::networkAllowed)
+        api = createApi(newOptions.apiUrl)
         if (!wasAllowed && networkAllowed()) start()
     }
+
+    /** SDK istemcisi; kimlik JWT'si her istekte depodan okunur (ADR-0023 §9). */
+    private fun createApi(apiUrl: String) = HsApi(apiUrl, appId, networkAllowed = ::networkAllowed, identityToken = { storage?.userJwt })
 
     private fun onMain(block: () -> Unit) {
         if (Looper.myLooper() == Looper.getMainLooper()) block() else mainHandler.post(block)
@@ -269,11 +274,12 @@ object HeroSignal {
     }
 
     /**
-     * `/config` yanıtı: kimlik doğrulama zorunluluğu, app geneli in-app aralığı (kalıcı) ve dashboard'daki Android
+     * `/config` yanıtı: kimlik doğrulama zorunluluğu ve modu (`hmac`/`jwt`/`both`), app geneli in-app aralığı (kalıcı) ve dashboard'daki Android
      * bildirim kanalları (`android_channels` → `NotificationChannel`; ADR-0019 §7, §12).
      */
     private fun applyConfig(config: JSONObject) {
         identityVerificationRequired = config.optBoolean("identity_verification_required", false)
+        identityVerificationMode = HsIdentityVerificationMode.fromConfig(config)
         val interval = config.optJSONObject("in_app")?.optLong("min_interval_seconds", 0L)?.coerceAtLeast(0L) ?: 0L
         storage?.inAppMinIntervalSeconds = interval
         inApp?.globalMinIntervalSeconds = interval
@@ -669,12 +675,19 @@ object HeroSignal {
 
     // --- Public API ---
 
+    /**
+     * Kullanıcıyı kimliklendirir. Kimlik kanıtı app ayarına göre HMAC [identityHash] ve/veya sunucunuzda imzalanmış
+     * ES256 [jwt]'dir (`login("user_42", jwt = token)`). JWT kalıcı saklanır ve sonraki tüm SDK isteklerinde
+     * `Authorization: Bearer` başlığıyla gider; süresi dolunca [updateUserJwt] ile yenilenir, [logout] ile silinir.
+     */
     @JvmStatic
     @JvmOverloads
-    fun login(externalId: String, identityHash: String? = null) {
+    fun login(externalId: String, identityHash: String? = null, jwt: String? = null) {
         val store = storage ?: error("HeroSignal.initialize önce çağrılmalı")
         require(externalId.isNotBlank()) { "externalId gerekli" }
-        if (identityVerificationRequired && identityHash == null) error("Bu app için identityHash zorunlu")
+        HsIdentityVerification.requireLoginProof(identityVerificationRequired, identityVerificationMode, identityHash, jwt)
+        // JWT bu girişin isteğinde de başlıkta gitmelidir: istekten önce saklanır.
+        store.userJwt = jwt?.takeIf { it.isNotBlank() }
         scope.launch {
             if (!networkAllowed()) {
                 // Gizlilik onayı yokken ağ çağrısı yapılmaz: kimlik yerelde tutulur, onay verilince start() eşitler.
@@ -715,6 +728,20 @@ object HeroSignal {
         }
     }
 
+    /**
+     * Süresi dolan veya yenilenen kimlik JWT'sini günceller (giriş yapmış kullanıcı için; yoksa `IllegalStateException`).
+     * Sonraki SDK istekleri yeni belirteci taşır; kuyrukta bekleyen işlemler yeniden denenir.
+     */
+    @JvmStatic
+    fun updateUserJwt(jwt: String) {
+        val store = storage ?: error("HeroSignal.initialize önce çağrılmalı")
+        HsIdentityVerification.updateJwt(store, jwt)
+        if (!networkAllowed()) return
+        val q = queue ?: return
+        scope.launch { if (!q.flush()) scheduleFlush() }
+    }
+
+    /** Kimliği ayırır; kimlik JWT'si ve identity hash cihazdan silinir. */
     @JvmStatic
     fun logout() {
         val store = storage ?: return
