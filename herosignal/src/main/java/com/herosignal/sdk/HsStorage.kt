@@ -86,6 +86,23 @@ internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, H
         set(value) = prefs.edit().putLong(KEY_IN_APP_LAST_IMPRESSION, value ?: 0L).apply()
 
     /** Config'den gelen `in_app.min_interval_seconds`; config alınamazsa son bilinen değer kullanılır. */
+    /**
+     * Öğrenilen bölgesel API kökü (ADR-0032 §4; config `api_url` veya 421 `HS_WRONG_CELL`) ve öğrenildiği başlangıç
+     * kökü (`Options.apiUrl`). Başlangıç kökü değişirse kayıt kullanılmaz; kimlik temizlenirken silinmez.
+     */
+    var regionalApiUrl: String?
+        get() = prefs.getString(KEY_REGIONAL_API_URL, null)
+        set(value) = prefs.edit().putString(KEY_REGIONAL_API_URL, value).apply()
+
+    var regionalApiSeed: String?
+        get() = prefs.getString(KEY_REGIONAL_API_SEED, null)
+        set(value) = prefs.edit().putString(KEY_REGIONAL_API_SEED, value).apply()
+
+    /** Bölgesel kökü başlangıç köküyle birlikte tek yazımda saklar. */
+    fun saveRegionalApi(seed: String, url: String) {
+        prefs.edit().putString(KEY_REGIONAL_API_SEED, seed).putString(KEY_REGIONAL_API_URL, url).apply()
+    }
+
     var inAppMinIntervalSeconds: Long
         get() = prefs.getLong(KEY_IN_APP_MIN_INTERVAL, 0L)
         set(value) = prefs.edit().putLong(KEY_IN_APP_MIN_INTERVAL, value).apply()
@@ -182,6 +199,8 @@ internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, H
         const val KEY_QUEUE = "queue"
         const val KEY_IN_APP_LAST_IMPRESSION = "in_app_last_impression_at"
         const val KEY_IN_APP_MIN_INTERVAL = "in_app_min_interval_seconds"
+        const val KEY_REGIONAL_API_URL = "regional_api_url"
+        const val KEY_REGIONAL_API_SEED = "regional_api_seed"
         const val KEY_CONTACTS_PREFIX = "contacts_"
         const val KEY_SERVER_PUSH_CAPABLE = "server_push_capable"
         const val KEY_SERVER_OPTED_IN = "server_opted_in"
