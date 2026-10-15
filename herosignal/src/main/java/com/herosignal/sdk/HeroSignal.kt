@@ -119,6 +119,7 @@ object HeroSignal {
         override fun enqueue(op: JSONObject) = HeroSignal.enqueue(op)
         override fun addTags(tags: Map<String, String>) = User.addTags(tags)
         override fun sendEvent(name: String, value: Double?) = Session.sendEvent(name, emptyMap(), value)
+        override fun trackEvent(name: String, properties: Map<String, Any?>) = Session.sendEvent(name, properties)
         override fun requestPushPermission(activity: Activity?) {
             if (activity == null) HsLog.w("push_prompt: ön planda Activity yok, izin istenemedi")
             else Notifications.requestPermission(activity)
@@ -1195,6 +1196,7 @@ object HeroSignal {
         fun sendEvent(name: String, properties: Map<String, Any?> = emptyMap(), value: Double? = null) {
             val op = JSONObject().put("type", "event").put("name", name).put("properties", JSONObject(properties))
                 .put("occurred_at", java.time.Instant.now().toString()).put("at", System.currentTimeMillis())
+                .put("event_id", java.util.UUID.randomUUID().toString())
             value?.let { op.put("value", it) }
             enqueue(op)
             inApp?.onEvent(name)
@@ -1234,7 +1236,10 @@ object HeroSignal {
         @JvmStatic fun addLifecycleListener(listener: HsInAppLifecycleListener) { inApp?.lifecycleListeners?.add(listener) }
         @JvmStatic fun removeLifecycleListener(listener: HsInAppLifecycleListener) { inApp?.lifecycleListeners?.remove(listener) }
 
-        /** Özel çizim katmanı (ör. Flutter köprüsü); `null` varsayılan Dialog çizimine döner. */
+        /**
+         * Özel çizim katmanı (ör. Flutter köprüsü); `null` varsayılan Dialog çizimine döner. HTML içerikli mesajlar
+         * güvenlik yalıtımı (ADR-0027) nedeniyle her zaman SDK'nın WebView çizimiyle gösterilir.
+         */
         @JvmStatic fun setRenderer(renderer: HsInAppRenderer?) { inApp?.setRenderer(renderer) }
     }
 

@@ -130,6 +130,76 @@ class HsInAppParserTest {
     }
 
     @Test
+    fun `carousel blogu ayristirilir, kart dugmeleri dugme listesine katilir`() {
+        val m = HsInAppParser.parseMessage(JSONObject("""
+            { "id": "iam_c", "priority": 0, "triggers": [],
+              "display": { "layout": "modal", "dismissible": true, "content_type": "blocks", "html": null, "html_height": null, "blocks": [
+                { "type": "title", "text": "Yeni özellikler" },
+                { "type": "carousel", "id": "steps", "cards": [
+                  { "id": "c1", "title": "Adım 1", "body": "Profilini tamamla", "image_url": "https://cdn.example.com/1.png", "image_alt": "Profil",
+                    "button": { "id": "b1", "text": "Başla", "action": { "type": "deeplink", "url": "myapp://profile" } } },
+                  { "id": "c2", "title": "Adım 2", "body": null, "image_url": null, "image_alt": null, "button": null },
+                  { "id": "c3", "title": "Adım 3", "body": null, "image_url": null, "image_alt": null,
+                    "button": { "id": "bad", "text": "Kötü", "action": { "type": "url", "url": "javascript:alert(1)" } } },
+                  { "title": "Kimliksiz kart" }
+                ] },
+                { "type": "carousel", "id": "empty", "cards": [] },
+                { "type": "button", "id": "close", "text": "Kapat", "action": { "type": "dismiss" } },
+                { "type": "countdown", "id": "future" }
+              ] } }
+        """.trimIndent()))
+        assertEquals(HsInAppContentType.BLOCKS, m.display.contentType)
+        assertFalse(m.display.isHtml)
+        assertNull(m.display.html)
+        // Başlık, carousel ve düğme; kartsız carousel ve tanınmayan blok atlanır.
+        assertEquals(3, m.display.blocks.size)
+        val carousel = m.display.blocks[1] as HsInAppBlock.Carousel
+        assertEquals("steps", carousel.id)
+        assertEquals(listOf("c1", "c2", "c3"), carousel.cards.map { it.id }) // kimliksiz kart atlanır
+        val first = carousel.cards[0]
+        assertEquals("Adım 1", first.title)
+        assertEquals("Profilini tamamla", first.body)
+        assertEquals("https://cdn.example.com/1.png", first.imageUrl)
+        assertEquals("Profil", first.imageAlt)
+        assertEquals(HsInAppAction.Deeplink("myapp://profile"), first.button?.action)
+        assertNull(carousel.cards[1].button)
+        assertNull(carousel.cards[1].body)
+        assertNull(carousel.cards[2].button) // geçersiz aksiyonlu kart düğmesi düşer, kart kalır
+        // Tıklama bildirimi düğme listesinden çözülür: kart düğmeleri de bulunur.
+        assertEquals(listOf("b1", "close"), m.display.buttons.map { it.id })
+    }
+
+    @Test
+    fun `HTML icerik ayristirilir, eski sunucu yanitinda bloklar varsayilir`() {
+        HsLog.level = HsLog.Level.NONE
+        val list = HsInAppParser.parseList(JSONObject("""
+            { "language": "tr", "data": [
+              { "id": "iam_h", "priority": 1, "triggers": [{ "kind": "session_start" }],
+                "display": { "layout": "banner_bottom", "dismissible": true, "content_type": "html",
+                  "html": "<h1>Merhaba Ayşe</h1><button data-hs-close>Kapat</button>", "html_height": 140,
+                  "blocks": [{ "type": "title", "text": "yok sayılır" }] } },
+              { "id": "iam_empty", "priority": 0, "triggers": [],
+                "display": { "layout": "modal", "content_type": "html", "html": null, "html_height": null, "blocks": [] } },
+              { "id": "iam_legacy", "priority": 0, "triggers": [],
+                "display": { "layout": "modal", "blocks": [{ "type": "body", "text": "Eski" }] } }
+            ] }
+        """.trimIndent()))
+        // İçeriksiz HTML mesajı atlanır.
+        assertEquals(listOf("iam_h", "iam_legacy"), list.map { it.id })
+        val html = list[0]
+        assertTrue(html.display.isHtml)
+        assertEquals("<h1>Merhaba Ayşe</h1><button data-hs-close>Kapat</button>", html.display.html)
+        assertEquals(140, html.display.htmlHeight)
+        assertTrue(html.display.blocks.isEmpty())
+        assertTrue(html.display.buttons.isEmpty())
+        assertEquals("tr", html.language)
+        val legacy = list[1]
+        assertEquals(HsInAppContentType.BLOCKS, legacy.display.contentType)
+        assertNull(legacy.display.htmlHeight)
+        assertEquals(listOf<HsInAppBlock>(HsInAppBlock.Body("Eski")), legacy.display.blocks)
+    }
+
+    @Test
     fun `tetik gruplari VEYA, grup ici VE olarak degerlendirilir`() {
         val groups = HsInAppParser.parseTriggerGroups(org.json.JSONArray("""
             [

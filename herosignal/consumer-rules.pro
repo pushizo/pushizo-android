@@ -4,3 +4,7 @@
 -keep class com.herosignal.sdk.HeroSignalMessagingService { *; }
 -keep class com.herosignal.sdk.NotificationOpenedReceiver { *; }
 -keep class com.herosignal.sdk.FlushWorker { *; }
+# HTML in-app köprüsü: WebView yalnızca @JavascriptInterface metodunu çağırır; küçültmede adı korunmalı.
+-keepclassmembers class com.herosignal.sdk.HsHtmlNativeBridge {
+    @android.webkit.JavascriptInterface <methods>;
+}

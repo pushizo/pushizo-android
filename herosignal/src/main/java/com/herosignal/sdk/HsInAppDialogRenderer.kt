@@ -22,6 +22,7 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -38,8 +39,9 @@ import kotlin.math.roundToInt
 
 /**
  * Varsayılan in-app çizimi: geçerli (resumed) Activity üstünde yerel View'larla kurulan Dialog (Compose gerekmez).
- * Görseller gösterimden önce indirilir. Activity durdurulursa (arka plan, döndürme) mesaj sessizce kaldırılır ve
- * sonraki Activity'de yeniden gösterilir (yeni gösterim sayılmaz).
+ * Görseller (carousel kartlarınınkiler dahil) gösterimden önce indirilir. HTML içerik yalıtılmış WebView'da çizilir
+ * ([HsHtmlInAppView], ADR-0027). Activity durdurulursa (arka plan, döndürme) mesaj sessizce kaldırılır ve sonraki
+ * Activity'de yeniden gösterilir (yeni gösterim sayılmaz).
  */
 internal class HsInAppDialogRenderer(app: Application) : HsInAppRenderer, Application.ActivityLifecycleCallbacks {
     private val main = Handler(Looper.getMainLooper())
@@ -53,6 +55,8 @@ internal class HsInAppDialogRenderer(app: Application) : HsInAppRenderer, Applic
         var host: WeakReference<Activity>? = null
         var closing = false
         var autoDismiss: Runnable? = null
+        /** HTML içerikte o anki WebView; görünüm kaldırılınca yok edilir. */
+        var web: HsHtmlInAppView? = null
     }
 
     init {
@@ -67,7 +71,7 @@ internal class HsInAppDialogRenderer(app: Application) : HsInAppRenderer, Applic
         val a = Active(message, handle)
         active = a
         scope.launch {
-            val urls = message.display.blocks.filterIsInstance<HsInAppBlock.Image>().map { it.url }.distinct()
+            val urls = imageUrls(message.display)
             val images = withContext(Dispatchers.IO) { urls.associateWith { HsImages.download(it) } }
             if (active !== a) return@launch
             a.images = images
@@ -87,6 +91,8 @@ internal class HsInAppDialogRenderer(app: Application) : HsInAppRenderer, Applic
     private fun finish(a: Active) {
         a.autoDismiss?.let(main::removeCallbacks)
         a.autoDismiss = null
+        a.web?.destroy()
+        a.web = null
         if (active === a) active = null
         a.handle.closed()
     }
@@ -96,6 +102,8 @@ internal class HsInAppDialogRenderer(app: Application) : HsInAppRenderer, Applic
         val activity = currentActivity ?: return // onActivityResumed yeniden dener
         val dialog = runCatching { build(activity, a) }.getOrElse {
             HsLog.w("in-app görünümü oluşturulamadı", it)
+            a.web?.destroy()
+            a.web = null
             a.handle.dismissed()
             return
         }
@@ -119,6 +127,8 @@ internal class HsInAppDialogRenderer(app: Application) : HsInAppRenderer, Applic
         a.autoDismiss = null
         dialog.setOnDismissListener(null)
         runCatching { dialog.dismiss() }
+        a.web?.destroy()
+        a.web = null
     }
 
     // --- Görünüm ---
@@ -135,12 +145,19 @@ internal class HsInAppDialogRenderer(app: Application) : HsInAppRenderer, Applic
         // Kapatılamaz ama düğmesiz ve otomatik kapanmayan mesajda kullanıcı mahsur kalmasın.
         val showClose = display.dismissible || (display.buttons.isEmpty() && display.autoDismissSeconds == null)
         val title = display.blocks.filterIsInstance<HsInAppBlock.Title>().firstOrNull()?.text
+        val padding = dp(if (banner) 16 else 24)
+        // Kartın dış genişliği (banner: kök dolgusu 12dp, modal: en fazla 420dp); carousel kart genişliği buradan çıkar.
+        val cardWidth = when {
+            banner -> metrics.widthPixels - dp(24)
+            fullscreen -> metrics.widthPixels
+            else -> min(metrics.widthPixels - dp(48), dp(420))
+        }
 
         val content = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             gravity = if (fullscreen) Gravity.CENTER else Gravity.CENTER_HORIZONTAL
-            val top = if (showClose && display.blocks.firstOrNull() !is HsInAppBlock.Image) dp(40) else dp(if (banner) 16 else 24)
-            setPadding(dp(if (banner) 16 else 24), top, dp(if (banner) 16 else 24), dp(if (banner) 16 else 24))
+            val top = if (showClose && display.blocks.firstOrNull() !is HsInAppBlock.Image) dp(40) else padding
+            setPadding(padding, top, padding, padding)
         }
         fun spaced(view: View, bottom: Int = 12) = content.addView(
             view,
@@ -173,20 +190,8 @@ internal class HsInAppDialogRenderer(app: Application) : HsInAppRenderer, Applic
                 gravity = if (banner) Gravity.START else Gravity.CENTER_HORIZONTAL
                 setLineSpacing(0f, 1.15f)
             }, bottom = 16)
-            is HsInAppBlock.Button -> {
-                val (bg, fg) = HsInAppStyle.buttonColors(block, colors)
-                spaced(Button(activity).apply {
-                    text = block.text
-                    isAllCaps = false
-                    setTextColor(fg)
-                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
-                    minHeight = dp(48)
-                    minimumHeight = dp(48)
-                    stateListAnimator = null
-                    background = RippleDrawable(ColorStateList.valueOf(0x33000000), rounded(bg, dp(10).toFloat()), null)
-                    setOnClickListener { a.handle.buttonClicked(block.id) }
-                }, bottom = 8)
-            }
+            is HsInAppBlock.Button -> spaced(button(activity, block, a, colors, ::dp), bottom = 8)
+            is HsInAppBlock.Carousel -> spaced(carousel(activity, block, a, colors, cardWidth - 2 * padding, banner, ::dp), bottom = 16)
         }
 
         val card = FrameLayout(activity).apply {
@@ -195,8 +200,18 @@ internal class HsInAppDialogRenderer(app: Application) : HsInAppRenderer, Applic
             isClickable = true // karta dokunma arka plana geçmez
             ViewCompat.setAccessibilityPaneTitle(this, title ?: activity.getString(R.string.hs_in_app_message))
         }
-        val scroll = ScrollView(activity).apply { isFillViewport = fullscreen; addView(content) }
-        card.addView(scroll, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, if (fullscreen) ViewGroup.LayoutParams.MATCH_PARENT else ViewGroup.LayoutParams.WRAP_CONTENT))
+        if (display.isHtml) {
+            val web = htmlView(activity, a, fullscreen, metrics.heightPixels, ::dp)
+            val initial = dp(display.htmlHeight ?: if (banner) DEFAULT_BANNER_HTML_HEIGHT else DEFAULT_MODAL_HTML_HEIGHT)
+            card.addView(web.webView, FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                if (fullscreen) ViewGroup.LayoutParams.MATCH_PARENT else min(initial, maxHtmlHeight(metrics.heightPixels)),
+            ))
+            web.load()
+        } else {
+            val scroll = ScrollView(activity).apply { isFillViewport = fullscreen; addView(content) }
+            card.addView(scroll, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, if (fullscreen) ViewGroup.LayoutParams.MATCH_PARENT else ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
         if (showClose) {
             card.addView(TextView(activity).apply {
                 text = "✕"
@@ -267,6 +282,126 @@ internal class HsInAppDialogRenderer(app: Application) : HsInAppRenderer, Applic
         cornerRadius = radius
     }
 
+    private fun button(activity: Activity, block: HsInAppBlock.Button, a: Active, colors: HsInAppStyle.Colors, dp: (Int) -> Int): Button {
+        val (bg, fg) = HsInAppStyle.buttonColors(block, colors)
+        return Button(activity).apply {
+            text = block.text
+            isAllCaps = false
+            setTextColor(fg)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            minHeight = dp(48)
+            minimumHeight = dp(48)
+            stateListAnimator = null
+            background = RippleDrawable(ColorStateList.valueOf(0x33000000), rounded(bg, dp(10).toFloat()), null)
+            setOnClickListener { a.handle.buttonClicked(block.id) }
+        }
+    }
+
+    /**
+     * Carousel: yatay kaydırmalı kartlar. Birden fazla kart varsa kart genişliği alanın %85'idir (sonraki kart görünür,
+     * kaydırılabildiği anlaşılır). Her kart ekran okuyucuda tek öğedir ("Kart 1/3: başlık"); düğmesi ayrıca odaklanır.
+     */
+    private fun carousel(
+        activity: Activity,
+        block: HsInAppBlock.Carousel,
+        a: Active,
+        colors: HsInAppStyle.Colors,
+        available: Int,
+        banner: Boolean,
+        dp: (Int) -> Int,
+    ): View {
+        val total = block.cards.size
+        val width = if (total > 1) (available * 0.85f).roundToInt() else available
+        val row = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            isBaselineAligned = false
+        }
+        block.cards.forEachIndexed { index, card ->
+            val view = LinearLayout(activity).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(12), dp(12), dp(12), dp(12))
+                background = GradientDrawable().apply {
+                    setColor(colors.background)
+                    cornerRadius = dp(12).toFloat()
+                    setStroke(dp(1), (colors.text and 0x00FFFFFF) or 0x33000000)
+                }
+                val label = activity.getString(R.string.hs_in_app_carousel_card, index + 1, total, card.title)
+                contentDescription = if (card.body.isNullOrBlank()) label else "$label. ${card.body}"
+                ViewCompat.setScreenReaderFocusable(this, true)
+            }
+            fun add(child: View, bottom: Int, height: Int = ViewGroup.LayoutParams.WRAP_CONTENT, weight: Float = 0f) = view.addView(
+                child,
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, height, weight).apply { bottomMargin = dp(bottom) },
+            )
+            card.imageUrl?.let { a.images?.get(it) }?.let { bitmap ->
+                add(ImageView(activity).apply {
+                    setImageBitmap(bitmap)
+                    scaleType = ImageView.ScaleType.CENTER_CROP
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                }, bottom = 8, height = dp(if (banner) 80 else 140))
+            }
+            add(TextView(activity).apply {
+                text = card.title
+                setTextColor(colors.text)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, if (banner) 15f else 17f)
+                setTypeface(typeface, Typeface.BOLD)
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }, bottom = 4)
+            card.body?.takeIf { it.isNotBlank() }?.let { body ->
+                add(TextView(activity).apply {
+                    text = body
+                    setTextColor(colors.text)
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, if (banner) 13f else 15f)
+                    setLineSpacing(0f, 1.15f)
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                }, bottom = 8)
+            }
+            card.button?.let { b ->
+                // Düğmeler kart altına hizalanır (kartlar aynı yükseklikte).
+                add(View(activity), bottom = 0, height = 0, weight = 1f)
+                add(button(activity, b, a, colors, dp), bottom = 0)
+            }
+            row.addView(view, LinearLayout.LayoutParams(width, ViewGroup.LayoutParams.MATCH_PARENT).apply {
+                if (index < total - 1) marginEnd = dp(12)
+            })
+        }
+        return HorizontalScrollView(activity).apply {
+            isHorizontalScrollBarEnabled = false
+            isFillViewport = total == 1
+            addView(row)
+        }
+    }
+
+    /** HTML içerik: yalıtılmış WebView; köprü eylemleri handle'a, `resize` yükseklik güncellemesine dönüşür. */
+    private fun htmlView(activity: Activity, a: Active, fullscreen: Boolean, screenHeight: Int, dp: (Int) -> Int): HsHtmlInAppView {
+        a.web?.destroy()
+        lateinit var web: HsHtmlInAppView
+        web = HsHtmlInAppView(activity, a.message.display.html.orEmpty(), a.message.language) { action ->
+            if (a.web !== web) return@HsHtmlInAppView
+            when (action) {
+                HsHtmlBridgeAction.Ready -> Unit
+                HsHtmlBridgeAction.Close -> a.handle.dismissed()
+                is HsHtmlBridgeAction.Click -> a.handle.htmlClicked(action.actionId, action.url)
+                is HsHtmlBridgeAction.AddTag -> a.handle.htmlAddTag(action.key, action.value)
+                is HsHtmlBridgeAction.TrackEvent -> a.handle.htmlTrackEvent(action.name, action.props)
+                is HsHtmlBridgeAction.Resize -> if (!fullscreen) {
+                    val view = web.webView
+                    val height = min(dp(action.height), maxHtmlHeight(screenHeight))
+                    val params = view.layoutParams
+                    if (params != null && params.height != height) {
+                        params.height = height
+                        view.layoutParams = params
+                    }
+                }
+            }
+        }
+        a.web = web
+        return web
+    }
+
+    /** Banner/modal HTML yüksekliği üst sınırı: ekran yüksekliğinin %90'ı. */
+    private fun maxHtmlHeight(screenHeight: Int): Int = (screenHeight * 0.9f).roundToInt()
+
     // --- Activity takibi ---
 
     override fun onActivityResumed(activity: Activity) {
@@ -293,5 +428,17 @@ internal class HsInAppDialogRenderer(app: Application) : HsInAppRenderer, Applic
 
     private companion object {
         const val SCRIM = 0x99000000.toInt()
+        /** `html_height` verilmediğinde ilk yükseklik (dp); köprünün `resize` bildirimiyle güncellenir. */
+        const val DEFAULT_BANNER_HTML_HEIGHT = 120
+        const val DEFAULT_MODAL_HTML_HEIGHT = 360
+
+        /** Gösterimden önce indirilecek görseller: görsel blokları ve carousel kart görselleri (HTML'de yok). */
+        fun imageUrls(display: HsInAppDisplay): List<String> = display.blocks.flatMap { block ->
+            when (block) {
+                is HsInAppBlock.Image -> listOf(block.url)
+                is HsInAppBlock.Carousel -> block.cards.mapNotNull { it.imageUrl }
+                else -> emptyList()
+            }
+        }.distinct()
     }
 }
