@@ -10,7 +10,7 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        // Huawei HMS Push Kit (yalnızca `herosignal-hms` modülü); depo yalnızca Huawei gruplarına sorulur.
+        // Huawei HMS Push Kit (yalnızca `pushizo-hms` modülü); depo yalnızca Huawei gruplarına sorulur.
         maven {
             url = uri("https://developer.huawei.com/repo/")
             content {
@@ -20,6 +20,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "herosignal-android"
-include(":herosignal")
-include(":herosignal-hms")
+rootProject.name = "pushizo-android"
+include(":pushizo")
+include(":pushizo-hms")
