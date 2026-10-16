@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- In-app mesaj erişilebilirlik etiketleri (uygulama aynı adla ezebilir). -->
+    <string name="hs_in_app_close">Close</string>
+    <string name="hs_in_app_message">Message</string>
+    <!-- Carousel kartı ekran okuyucu etiketi: sıra, toplam, kart başlığı. -->
+    <string name="hs_in_app_carousel_card">Card %1$d/%2$d: %3$s</string>
+    <!-- Konum izni açıklama diyaloğu (Pushizo.Location.requestPermission; uygulama aynı adla ezebilir). -->
+    <string name="hs_location_rationale_title">Share your location</string>
+    <string name="hs_location_rationale_message">We use your approximate location only while the app is open, to send you relevant nearby notifications. You can turn this off at any time.</string>
+    <string name="hs_location_rationale_continue">Continue</string>
+    <string name="hs_location_rationale_not_now">Not now</string>
+</resources>
