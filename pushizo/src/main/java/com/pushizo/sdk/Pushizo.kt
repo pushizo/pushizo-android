@@ -263,6 +263,7 @@ object Pushizo {
         val clearLocation = store.locationShared || store.queue.any { it.optString("type") == HsLocationRules.OP_TYPE }
         queue?.clear()
         store.clearIdentity()
+        PushizoChat.onLogout()
         // Paylaşım tercihi korunur; onay yeniden verilince konum ilk ön plana geçişte hemen gönderilir.
         store.locationLastSharedAt = 0L
         appContext?.let { WorkManager.getInstance(it).cancelUniqueWork(FLUSH_WORK) }
@@ -459,6 +460,8 @@ object Pushizo {
         }
         notifySubscription()
         if (queue?.flush() == false) scheduleFlush()
+        // Push aboneliği/token değişti: sohbet ziyaretçisinin abonelik bağı (çevrimdışı mesaj bildirimi) yenilenir.
+        PushizoChat.onIdentityChanged()
     }
 
     /** Uygulama sürümü (PackageInfo.versionName). */
@@ -644,6 +647,14 @@ object Pushizo {
             "contact_add" -> addContact(op.getString("channel"), op.getString("address"))
             "contact_remove" -> removeContact(op.getString("channel"), op.getString("address"))
             "in_app_event" -> inApp?.send(op)
+            "chat_send", "chat_offline" -> PushizoChat.performQueued(op)
+            HsAdsRules.OP_TYPE -> {
+                // Yalnızca en son reklam kimliği işlemi gönderilir (izin geri alındıysa `null`).
+                if (HsAdsRules.isSuperseded(op, store.queue)) return
+                val subId = engagementSubscriptionId() ?: throw HsDeferredException("abonelik yok")
+                val body = HsOwnership.withProof(HsAdsRules.body(op), ownershipToken(store, subId), store.externalId?.let { store.userIdentityHash })
+                api.request("PATCH", "/subscriptions/$subId", body)
+            }
             HsLocationRules.OP_TYPE -> {
                 // Kuyrukta daha yeni konum işlemi varsa (ör. paylaşım kapatıldı) bu işlem gönderilmeden atılır.
                 if (HsLocationRules.isSuperseded(op, store.queue)) return
@@ -753,6 +764,8 @@ object Pushizo {
         notification.deliveryId?.let { enqueue(JSONObject().put("type", "opened").put("delivery_id", it).put("button_id", actionId ?: "").put("at", System.currentTimeMillis())) }
         val event = HsClickEvent(notification, actionId, notification.urlFor(actionId))
         if (clickListeners.isEmpty()) pendingClick = event else clickListeners.forEach { it(event) }
+        // Sohbet bildirimi (`pushizo_chat`): uygulamanın sohbet ekranını açabilmesi için ayrıca bildirilir.
+        PushizoChat.onNotificationOpened(notification)
     }
 
     /** Ön plan dinleyicilerine sorar; dönen olay `prevented` ise bildirim (şimdilik) gösterilmez. */
@@ -859,6 +872,8 @@ object Pushizo {
             inApp?.reset()
             inApp?.onSubscriptionChanged()
             queue?.flush()
+            // Canlı sohbet ziyaretçisi giriş yapan kullanıcıya bağlanır (sohbet kullanılıyorsa).
+            PushizoChat.onIdentityChanged()
         }
     }
 
@@ -879,6 +894,8 @@ object Pushizo {
     @JvmStatic
     fun logout() {
         val store = storage ?: return
+        // Sohbet ziyaretçisi sıfırlanır: cihazı kullanan sonraki kişi önceki sohbeti görmez.
+        PushizoChat.onLogout()
         scope.launch {
             if (!networkAllowed()) {
                 // Onay yokken yalnızca yerel kimlik temizlenir; onay verilince start() sunucudaki aboneliği ayırır.
@@ -936,6 +953,7 @@ object Pushizo {
             }
             inApp?.reset()
             inApp?.onSubscriptionChanged()
+            PushizoChat.onIdentityChanged()
         }
         store.identitySyncPending = false
     }
@@ -1040,6 +1058,23 @@ object Pushizo {
                 callback?.onResult(result)
             }
         }
+
+        // --- Reklam kişiselleştirme rızası (ADR-0037): tercih ucunda ayrılmış anahtar `ads_personalization` ---
+
+        /**
+         * Kullanıcı e-posta/telefon özetinin reklam platformu kitlelerine gönderilmesine izin verdi mi. `false` rızayı geri
+         * alır; kullanıcı bir sonraki kitle senkronunda platformdan çıkarılır. Sonuç istenmiyorsa `callback` null verilir.
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun setAdsPersonalizationConsent(granted: Boolean, callback: HsCallback<HsPreferencesResult>? = null) =
+            setPreferences(listOf(HsPreferenceInput(HsConsents.ADS_PERSONALIZATION, null, granted)), callback)
+
+        /** Rıza kayıtları (`ads_personalization` …). Abonelik yoksa `IllegalStateException`. */
+        suspend fun getConsents(): List<HsConsent> = withContext(Dispatchers.IO) { getPreferencesBlocking().consents }
+
+        /** Java/köprü sürümü (geri çağrı arka plan iş parçacığında). */
+        @JvmStatic fun getConsents(callback: HsCallback<List<HsConsent>>) { scope.launch { callback.onResult(runCatching { getPreferencesBlocking().consents }) } }
 
         object pushSubscription {
             val id: String? get() = storage?.subscriptionId
@@ -1161,6 +1196,18 @@ object Pushizo {
      * gönderilir; izin yoksa veya gizlilik onayı verilmediyse hiçbir şey gönderilmez. İlk gönderim sunucuda KVKK açık rıza
      * kaydı sayılır. Uygulama manifest'ine `ACCESS_COARSE_LOCATION` (ve isteğe bağlı `ACCESS_FINE_LOCATION`) eklemelidir.
      */
+    /**
+     * Mobil reklam kimliği (GAID; ADR-0037). SDK reklam kitaplığı içermez: uygulama, kullanıcı reklam kimliğini
+     * kısıtlamadıysa `AdvertisingIdClient` ile aldığı kimliği verir. Kimlik yalnızca `ads_personalization` rızası olan
+     * kullanıcılarda ve SHA-256 özetiyle reklam kitlesine gönderilir. `null` veya sıfır kimlik sunucudaki kaydı siler.
+     */
+    object Ads {
+        @JvmStatic fun setAdvertisingId(id: String?) {
+            if (storage == null) return
+            enqueue(HsAdsRules.op(id, System.currentTimeMillis()))
+        }
+    }
+
     object Location {
         const val PERMISSION_REQUEST_CODE = 0x484C
 
@@ -1340,6 +1387,9 @@ object Pushizo {
             scope.launch { callback.onResult(runCatching(block)) }
         }
     }
+
+    /** Canlı sohbet (ADR-0040); ayrıntı [PushizoChat]. Java: `Pushizo.Chat.sendMessage(...)`. */
+    @JvmField val Chat: PushizoChat = PushizoChat
 
     object Debug {
         @JvmStatic fun setLogLevel(level: HsLog.Level) { HsLog.level = level }

@@ -30,8 +30,12 @@ data class HsMessageCategory(
     fun localizedName(language: String): String = name[language] ?: name["en"] ?: name.values.firstOrNull() ?: key
 }
 
-/** `GET/PUT /preferences` sonucu: kullanıcının tercihleri ve app'in kategorileri. */
-data class HsPreferencesResult(val preferences: List<HsPreference>, val categories: List<HsMessageCategory>)
+/** `GET/PUT /preferences` sonucu: kullanıcının tercihleri, app'in kategorileri ve rıza kayıtları (ADR-0037). */
+data class HsPreferencesResult @JvmOverloads constructor(
+    val preferences: List<HsPreference>,
+    val categories: List<HsMessageCategory>,
+    val consents: List<HsConsent> = emptyList(),
+)
 
 /** `User.setPreferences` girdisi; `channel` null ise tüm kanallar. */
 data class HsPreferenceInput(val category: String, val channel: String? = null, val optedIn: Boolean) {
@@ -44,7 +48,19 @@ internal object HsPreferencesParser {
     fun parseResult(json: JSONObject): HsPreferencesResult = HsPreferencesResult(
         preferences = json.optJSONArray("data").objects().map(::parsePreference),
         categories = json.optJSONArray("categories").objects().mapNotNull(::parseCategory),
+        consents = json.optJSONArray("consents").objects().mapNotNull(::parseConsent),
     )
+
+    /** Rıza kaydı; amaçsız kayıt atlanır (eski API sürümlerinde `consents` yoktur). */
+    fun parseConsent(json: JSONObject): HsConsent? {
+        val purpose = json.optStringOrNull("purpose") ?: return null
+        return HsConsent(
+            purpose = purpose,
+            granted = json.optBoolean("granted", false),
+            source = json.optStringOrNull("source"),
+            updatedAt = json.optStringOrNull("updated_at")?.let(HsIsoTime::parse),
+        )
+    }
 
     fun parsePreference(json: JSONObject): HsPreference = HsPreference(
         category = json.getString("category"),

@@ -9,7 +9,7 @@ import org.json.JSONObject
  * Cihazda kalıcı SDK durumu (SharedPreferences, app başına). İkincil kurucu birim testlerinde bellek içi
  * [SharedPreferences] ile kullanılır.
  */
-internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, HsSessionTracker.State, HsLocationRules.State {
+internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, HsSessionTracker.State, HsLocationRules.State, HsChatState {
     constructor(context: Context, appId: String) :
         this(context.applicationContext.getSharedPreferences("pushizo_$appId", Context.MODE_PRIVATE))
 
@@ -152,6 +152,49 @@ internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, H
         }
         set(value) = prefs.edit().putString(KEY_QUEUE, JSONArray(value).toString()).apply()
 
+    /**
+     * Canlı sohbet ziyaretçi kimliği ve gizli belirteci (ADR-0040 §2). Belirteç yalnızca bu uygulamanın özel deposunda
+     * (MODE_PRIVATE) tutulur, loglanmaz; sunucu yalnızca SHA-256 özetini saklar. Logout'ta yenilenir.
+     */
+    override var chatVisitorId: String?
+        get() = prefs.getString(KEY_CHAT_VISITOR_ID, null)
+        set(value) = prefs.edit().putString(KEY_CHAT_VISITOR_ID, value).apply()
+
+    override var chatVisitorToken: String?
+        get() = prefs.getString(KEY_CHAT_VISITOR_TOKEN, null)
+        set(value) = prefs.edit().putString(KEY_CHAT_VISITOR_TOKEN, value).apply()
+
+    /** Uygulama sohbeti başlattı mı (`Pushizo.Chat.start`); kapalıyken login/abonelik değişiminde sohbet uçları çağrılmaz. */
+    override var chatEnabled: Boolean
+        get() = prefs.getBoolean(KEY_CHAT_ENABLED, false)
+        set(value) = prefs.edit().putBoolean(KEY_CHAT_ENABLED, value).apply()
+
+    /** Son başarılı `chat/identify` girdisinin özeti (değişmediyse istek tekrarlanmaz). */
+    override var chatIdentifyKey: String?
+        get() = prefs.getString(KEY_CHAT_IDENTIFY_KEY, null)
+        set(value) = prefs.edit().putString(KEY_CHAT_IDENTIFY_KEY, value).apply()
+
+    /** Görülen en büyük mesaj sıra numarası (akış yeniden kurulunca `Last-Event-ID`). */
+    override var chatLastSeq: Long
+        get() = prefs.getLong(KEY_CHAT_LAST_SEQ, 0L)
+        set(value) = prefs.edit().putLong(KEY_CHAT_LAST_SEQ, value).apply()
+
+    /** Sunucuya bildirilen son teslim işaretçisi (yalnızca ileri gider). */
+    override var chatDeliveredSeq: Long
+        get() = prefs.getLong(KEY_CHAT_DELIVERED_SEQ, 0L)
+        set(value) = prefs.edit().putLong(KEY_CHAT_DELIVERED_SEQ, value).apply()
+
+    /** Son bilinen okunmamış mesaj sayısı. */
+    override var chatUnreadCount: Int
+        get() = prefs.getInt(KEY_CHAT_UNREAD, 0)
+        set(value) = prefs.edit().putInt(KEY_CHAT_UNREAD, value).apply()
+
+    /** Ziyaretçiyi sıfırlar (logout / gizlilik onayının geri alınması); bir sonraki sohbet yeni kimlikle başlar. */
+    override fun clearChatVisitor() {
+        prefs.edit().remove(KEY_CHAT_VISITOR_ID).remove(KEY_CHAT_VISITOR_TOKEN).remove(KEY_CHAT_IDENTIFY_KEY)
+            .remove(KEY_CHAT_LAST_SEQ).remove(KEY_CHAT_DELIVERED_SEQ).remove(KEY_CHAT_UNREAD).apply()
+    }
+
     /** E-posta/SMS abonelikleri: kanal (`email`/`sms`) → normalize adres → abonelik kimliği. */
     fun contacts(channel: String): Map<String, String> {
         val raw = prefs.getString(contactKey(channel), null) ?: return emptyMap()
@@ -207,5 +250,12 @@ internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, H
         const val KEY_IDENTITY_SYNC_PENDING = "identity_sync_pending"
         const val KEY_SESSION_STARTED_AT = "session_started_at"
         const val KEY_SESSION_BACKGROUND_AT = "session_background_at"
+        const val KEY_CHAT_VISITOR_ID = "chat_visitor_id"
+        const val KEY_CHAT_VISITOR_TOKEN = "chat_visitor_token"
+        const val KEY_CHAT_ENABLED = "chat_enabled"
+        const val KEY_CHAT_IDENTIFY_KEY = "chat_identify_key"
+        const val KEY_CHAT_LAST_SEQ = "chat_last_seq"
+        const val KEY_CHAT_DELIVERED_SEQ = "chat_delivered_seq"
+        const val KEY_CHAT_UNREAD = "chat_unread_count"
     }
 }
