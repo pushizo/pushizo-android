@@ -65,7 +65,7 @@ publishing {
             pom {
                 name.set("Pushizo Android SDK")
                 description.set("Pushizo Android SDK: FCM kaydı, kullanıcı/tag yönetimi, olaylar, in-app mesajlar ve bildirim kutusu")
-                url.set("https://github.com/exec0de/pushizo/tree/main/sdk/android")
+                url.set("https://docs.pushizo.com/docs/sdk/android")
                 licenses {
                     license {
                         name.set("MIT")
