@@ -67,6 +67,8 @@ class PushizoMessagingService : FirebaseMessagingService() {
             // SDK kayıtlı yapılandırmayla başlatılır.
             val initialized = Pushizo.ensureInitialized(context)
             n.deliveryId?.let { if (initialized) Pushizo.reportReceived(it) }
+            // Canlı sohbet bildirimi: okunmamış sayısı yenilenir (bildirim yine gösterilir).
+            if (initialized) PushizoChat.onPushReceived(data)
             if (n.silent) return // sessiz mesaj: gösterilmez
             if (n.title == null && n.body == null) return // gösterilecek içerik yok
 

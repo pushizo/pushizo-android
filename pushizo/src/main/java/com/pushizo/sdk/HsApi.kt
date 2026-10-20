@@ -6,6 +6,9 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
+/** İstek gövdesi (içerik türü + bayt). */
+internal class HsRequestPayload(val contentType: String, val bytes: ByteArray)
+
 /** API hata zarfı; 429/5xx ve ağ hataları yeniden denenebilir. */
 class HsApiException(val status: Int, val code: String, message: String) : IOException(message) {
     val retryable: Boolean get() = status == 0 || status == 429 || status >= 500
@@ -40,15 +43,55 @@ internal class HsApi(
 
     @Throws(HsApiException::class)
     fun request(method: String, path: String, body: JSONObject? = null, attempt: Int = 0): JSONObject =
-        send(method, path, body, attempt, gated = true)
+        send(method, path, body?.let(::jsonPayload), attempt, gated = true)
 
     /** Onay kapısını atlayan istek; yalnızca onay geri alınırken aboneliği kapatan son çağrı için kullanılır. */
     @Throws(HsApiException::class)
     fun requestIgnoringConsent(method: String, path: String, body: JSONObject? = null): JSONObject =
-        send(method, path, body, 0, gated = false)
+        send(method, path, body?.let(::jsonPayload), 0, gated = false)
+
+    /** Ham gövdeli istek (ör. `multipart/form-data` sohbet eki); yeniden deneme ve onay kapısı JSON istekleriyle aynıdır. */
+    @Throws(HsApiException::class)
+    fun requestRaw(method: String, path: String, contentType: String, bytes: ByteArray): JSONObject =
+        send(method, path, HsRequestPayload(contentType, bytes), 0, gated = true)
+
+    /**
+     * Server-Sent Events bağlantısı açar (sohbet akışı; ADR-0040 §3). Yeniden deneme yapılmaz (çağıran geri çekilmeyle
+     * yeniden bağlanır); 2xx dışı yanıt [HsApiException] fırlatır. Okuma zaman aşımı kalp atışından (15 sn) uzundur.
+     */
+    @Throws(HsApiException::class)
+    fun openStream(path: String, lastEventId: Long?, readTimeoutMs: Int = STREAM_READ_TIMEOUT_MS): HttpURLConnection {
+        if (!networkAllowed()) throw HsApiException(0, CONSENT_REQUIRED, "gizlilik onayı verilmedi; istek gönderilmedi")
+        val connection = (URL(base + path).openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = timeoutMs
+            readTimeout = readTimeoutMs
+            useCaches = false
+            setRequestProperty("Accept", "text/event-stream")
+            setRequestProperty("Cache-Control", "no-cache")
+            setRequestProperty("User-Agent", "pushizo-android/${BuildConfig.SDK_VERSION}")
+            lastEventId?.let { setRequestProperty("Last-Event-ID", it.toString()) }
+        }
+        try {
+            val status = connection.responseCode
+            if (status in 200..299) return connection
+            val text = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            val error = runCatching { JSONObject(text) }.getOrNull()?.optJSONObject("error")
+            connection.disconnect()
+            throw HsApiException(status, error?.optString("code") ?: "HTTP_$status", error?.optString("message") ?: "HTTP $status")
+        } catch (e: HsApiException) {
+            throw e
+        } catch (e: IOException) {
+            connection.disconnect()
+            throw HsApiException(0, "NETWORK", e.message ?: "network error")
+        }
+    }
+
+    private fun jsonPayload(body: JSONObject) =
+        HsRequestPayload("application/json; charset=utf-8", body.toString().toByteArray(Charsets.UTF_8))
 
     /** [rerouted]: istek başına en fazla bir hücre yönlendirmesi izlenir (iki hücre birbirini gösterse de döngü yok). */
-    private fun send(method: String, path: String, body: JSONObject?, attempt: Int, gated: Boolean, rerouted: Boolean = false): JSONObject {
+    private fun send(method: String, path: String, body: HsRequestPayload?, attempt: Int, gated: Boolean, rerouted: Boolean = false): JSONObject {
         if (gated && !networkAllowed()) throw HsApiException(0, CONSENT_REQUIRED, "gizlilik onayı verilmedi; istek gönderilmedi")
         val (wire, override) = wireMethod(method)
         val connection = (URL(base + path).openConnection() as HttpURLConnection).apply {
@@ -61,11 +104,11 @@ internal class HsApi(
             authorizationHeader(identityToken())?.let { setRequestProperty(AUTHORIZATION_HEADER, it) }
             if (body != null) {
                 doOutput = true
-                setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                setRequestProperty("Content-Type", body.contentType)
             }
         }
         try {
-            if (body != null) connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+            if (body != null) connection.outputStream.use { it.write(body.bytes) }
             val status = connection.responseCode
             val text = (if (status in 200..299) connection.inputStream else connection.errorStream)
                 ?.bufferedReader()?.use { it.readText() }.orEmpty()
@@ -98,6 +141,8 @@ internal class HsApi(
     internal companion object {
         private const val MAX_RETRIES = 3
         private val BACKOFF_MS = longArrayOf(500, 1500, 4000)
+        /** SSE okuma zaman aşımı: sunucu 15 sn'de bir kalp atışı yollar; iki kalp atışı kaçarsa bağlantı yenilenir. */
+        const val STREAM_READ_TIMEOUT_MS = 45_000
         const val METHOD_OVERRIDE_HEADER = "X-HTTP-Method-Override"
         const val AUTHORIZATION_HEADER = "Authorization"
         /** Onay kapısı kapalıyken dönen hata kodu (ağ bağlantısı açılmaz). */
