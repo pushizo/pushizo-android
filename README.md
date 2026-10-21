@@ -13,8 +13,18 @@
 
 **Pushizo Android SDK** — Kotlin SDK for push via FCM (and Huawei HMS Push Kit on devices without Google Play Services), in-app messages, notification inbox, users, tags and aliases, email and SMS subscriptions, preferences, notification channels, location and live chat. minSdk 23; usable from Java.
 
-> **Status:** Publishing to Maven Central is in progress; until then you can build from this repository.<br>
-> **Durum:** Maven Central yayını hazırlanıyor; o zamana kadar bu depodan derleyerek kullanabilirsiniz.
+> **Status:** Publishing to Maven Central is in progress.<br>
+> **Durum:** Maven Central yayını hazırlanıyor.
+
+**Install from GitHub until then · O zamana kadar GitHub'dan kurulum:**
+
+```bash
+git clone --branch v0.1.0 https://github.com/pushizo/pushizo-android
+gradle -p pushizo-android :pushizo:publishToMavenLocal :pushizo-hms:publishToMavenLocal
+# settings.gradle.kts → repositories { mavenLocal() }
+```
+
+**After publication · Yayından sonra:**
 
 ```kotlin
 dependencies {
