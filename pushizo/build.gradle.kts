@@ -69,20 +69,20 @@ publishing {
                 licenses {
                     license {
                         name.set("MIT")
-                        url.set("https://github.com/exec0de/pushizo/blob/main/LICENSE")
+                        url.set("https://github.com/pushizo/pushizo-android/blob/main/LICENSE")
                     }
                 }
                 developers {
                     developer {
                         id.set("pushizo")
                         name.set("Pushizo")
-                        url.set("https://github.com/exec0de/pushizo")
+                        url.set("https://github.com/pushizo/pushizo-android")
                     }
                 }
                 scm {
-                    url.set("https://github.com/exec0de/pushizo")
-                    connection.set("scm:git:https://github.com/exec0de/pushizo.git")
-                    developerConnection.set("scm:git:ssh://git@github.com/exec0de/pushizo.git")
+                    url.set("https://github.com/pushizo/pushizo-android")
+                    connection.set("scm:git:https://github.com/pushizo/pushizo-android.git")
+                    developerConnection.set("scm:git:ssh://git@github.com/pushizo/pushizo-android.git")
                 }
             }
         }
