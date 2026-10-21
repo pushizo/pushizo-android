@@ -92,7 +92,7 @@ publishing {
         // `gpr.user`/`gpr.key`.
         maven {
             name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/pushizo/pushizo")
+            url = uri("https://maven.pkg.github.com/exec0de/pushizo")
             credentials {
                 username = (project.findProperty("gpr.user") as String?) ?: System.getenv("GITHUB_ACTOR")
                 password = (project.findProperty("gpr.key") as String?) ?: System.getenv("GITHUB_TOKEN")
