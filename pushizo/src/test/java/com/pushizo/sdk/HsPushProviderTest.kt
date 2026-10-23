@@ -13,7 +13,7 @@ class HsPushProviderTest {
     @Test
     fun `HMS data JSON metni FCM data mapine cevrilir`() {
         val hs = JSONObject().put("dlv", "dlv_1").put("msg", "msg_1")
-        val actions = JSONArray().put(JSONObject().put("id", "buy").put("title", "Satın al").put("url", "https://example.com/buy"))
+        val actions = JSONArray().put(JSONObject().put("id", "buy").put("title", "Satın al").put("url", "https://pushizo.com/buy"))
         val json = JSONObject()
             .put("hs", hs.toString()) // sunucu `hs` alanını metin olarak gönderir
             .put("hs_delivery_id", "dlv_1")
@@ -43,7 +43,7 @@ class HsPushProviderTest {
         assertEquals("msg_1", n.messageId)
         assertEquals("Kampanya", n.title)
         assertEquals("Sepetinizde ürün var", n.body)
-        assertEquals(listOf(HsAction("buy", "Satın al", "https://example.com/buy")), n.actions)
+        assertEquals(listOf(HsAction("buy", "Satın al", "https://pushizo.com/buy")), n.actions)
         assertEquals(0xFF9900FF.toInt(), n.accentColor)
         assertFalse(n.silent)
         assertEquals(mapOf("order_id" to "42", "vip" to "true"), n.data)

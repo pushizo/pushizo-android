@@ -55,7 +55,7 @@ class HsTokenSyncTest {
         // Bilinen vektör: SHA-256("abc").
         assertEquals("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", HsOwnership.tokenHash("abc"))
         assertEquals("", HsOwnership.query(null, null))
-        assertEquals("?token_hash=${HsOwnership.tokenHash("ayse@example.com")}", HsOwnership.query("ayse@example.com"))
+        assertEquals("?token_hash=${HsOwnership.tokenHash("ayse@pushizo.com")}", HsOwnership.query("ayse@pushizo.com"))
         assertEquals(
             "?token_hash=${HsOwnership.tokenHash("+905321234567")}&identity_hash=${"a".repeat(64)}",
             HsOwnership.query("+905321234567", "a".repeat(64)),

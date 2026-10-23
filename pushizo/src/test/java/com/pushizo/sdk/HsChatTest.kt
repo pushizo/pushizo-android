@@ -119,15 +119,15 @@ class HsChatTest {
 
     @Test
     fun `mesaj, cevrimdisi, yaziyor ve ack govdeleri`() {
-        val send = HsChatRequests.sendBody(visitor, "m_abcdefgh", "Merhaba", "opt_1", null, "ali@example.com", null)
+        val send = HsChatRequests.sendBody(visitor, "m_abcdefgh", "Merhaba", "opt_1", null, "ali@pushizo.com", null)
         assertEquals("m_abcdefgh", send.getString("client_message_id"))
         assertEquals("Merhaba", send.getString("text"))
         assertEquals("opt_1", send.getString("option_id"))
-        assertEquals("ali@example.com", send.getString("email"))
+        assertEquals("ali@pushizo.com", send.getString("email"))
         assertFalse(send.has("name"))
 
-        val offline = HsChatRequests.offlineBody(visitor, "m_12345678", "ali@example.com", "Arayın", "Ali", null)
-        assertEquals("ali@example.com", offline.getString("email"))
+        val offline = HsChatRequests.offlineBody(visitor, "m_12345678", "ali@pushizo.com", "Arayın", "Ali", null)
+        assertEquals("ali@pushizo.com", offline.getString("email"))
         assertEquals("Ali", offline.getString("name"))
         assertEquals(visitor.token, offline.getString("visitor_token"))
 

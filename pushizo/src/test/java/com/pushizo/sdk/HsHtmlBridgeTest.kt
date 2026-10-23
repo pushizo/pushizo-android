@@ -64,7 +64,7 @@ class HsHtmlBridgeTest {
             assertEquals(c.getString("value"), expected, HsHtmlBridge.safeUrl(c.getString("value")))
         }
         assertNull(HsHtmlBridge.safeUrl(42))
-        assertTrue(HsHtmlBridge.isWebUrl("HTTPS://shop.example.com"))
+        assertTrue(HsHtmlBridge.isWebUrl("HTTPS://shop.pushizo.com"))
         assertTrue(!HsHtmlBridge.isWebUrl("myapp://cart"))
     }
 

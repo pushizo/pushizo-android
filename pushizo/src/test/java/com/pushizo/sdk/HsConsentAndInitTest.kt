@@ -43,7 +43,7 @@ class HsConsentAndInitTest {
     @Test
     fun `baslatma yapilandirmasi kaydedilip geri okunur`() {
         val options = Pushizo.Options(
-            apiUrl = "https://api.example.com",
+            apiUrl = "https://api.pushizo.com",
             requiresPrivacyConsent = true,
             logLevel = HsLog.Level.DEBUG,
             defaultChannelName = "Kampanyalar",

@@ -60,13 +60,13 @@ data class HsPushSubscriptionState(val id: String?, val token: String?, val opte
  * Pushizo Android SDK (eski sağlayıcı v5 yüzeyiyle uyumlu).
  *
  * ```kotlin
- * Pushizo.initialize(this, "app_…", Pushizo.Options(apiUrl = "https://api.example.com"))
+ * Pushizo.initialize(this, "app_…", Pushizo.Options(apiUrl = "https://api.pushizo.com"))
  * Pushizo.Notifications.requestPermission(activity)
  * Pushizo.Notifications.addPermissionObserver { granted -> }
  * Pushizo.login("user_42")
  * Pushizo.login("user_42", jwt = jwtFromYourServer) // identity verification `jwt`/`both`
  * Pushizo.User.addTag("plan", "pro")
- * Pushizo.User.addEmail("ali@example.com")
+ * Pushizo.User.addEmail("ali@pushizo.com")
  * Pushizo.InAppMessages.addTrigger("level", "gold")
  * val page = Pushizo.Inbox.list(limit = 20)
  * ```
@@ -271,7 +271,7 @@ object Pushizo {
     }
 
     /**
-     * Onay geri alındı: eski sağlayıcı'deki gibi bundan sonra hiçbir veri gönderilmez (kuyruk boşaltıldı, ağ kapısı kapalı).
+     * Onay geri alındı: eski sağlayıcıdaki gibi bundan sonra hiçbir veri gönderilmez (kuyruk boşaltıldı, ağ kapısı kapalı).
      * Tek istisna bilinçli olarak bu çağrıdır: onaydan önce kaydedilmiş push aboneliği bildirim almaya devam etmesin
      * diye sunucuya bir kez `opted_in: false` yazılır (yeni kişisel veri içermez, yalnızca sahiplik kanıtı). Kullanıcının
      * yerel tercihi (`optedIn`) korunur; onay yeniden verilince [reconcileSubscription] onu sunucuya geri yazar.
