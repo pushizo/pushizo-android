@@ -476,6 +476,7 @@ object Pushizo {
         locale = Locale.getDefault().toLanguageTag(),
         timezone = TimeZone.getDefault().id,
         pushCapable = Notifications.permission,
+        formFactor = if (ctx.packageManager.hasSystemFeature("android.hardware.type.watch")) "watch" else "phone",
     )
 
     /**
@@ -986,6 +987,13 @@ object Pushizo {
 
         /** E-posta aboneliği ekler (küçük harfe çevrilir); geçersiz adreste `IllegalArgumentException`. Çevrimdışıyken kuyrukta bekler. */
         @JvmStatic fun addEmail(email: String) = contactOp("contact_add", "email", requireNotNull(HsContacts.normalizeEmail(email)) { INVALID_EMAIL })
+
+        /** Fire OS ADM kayıt kimliği. Ana FCM aboneliğinin yerine geçmez. */
+        @JvmStatic fun registerAdm(token: String) {
+            val value = token.trim()
+            require(value.length in 8..4096) { "ADM registration id" }
+            contactOp("contact_add", "adm_push", value)
+        }
 
         /** E-posta aboneliğini siler (`DELETE /subscriptions/{id}`). */
         @JvmStatic fun removeEmail(email: String) = contactOp("contact_remove", "email", requireNotNull(HsContacts.normalizeEmail(email)) { INVALID_EMAIL })

@@ -106,6 +106,11 @@ class PushizoMessagingService : FirebaseMessagingService() {
             (n.accentColor ?: defaultColor(context))?.let { builder.setColor(it) }
             // Kilit ekranı görünürlüğü (Android 8+ kanalda da ayarlanabilir; bildirim değeri daha kısıtlayıcıysa geçerlidir).
             n.visibility?.let { builder.setVisibility(it) }
+            n.liveProgress?.let { progress ->
+                builder.setProgress(100, progress, false)
+                builder.setOngoing(n.ongoing)
+                if (n.ongoing) builder.setAutoCancel(false)
+            }
             // Android 8+ seste kanal ayarı geçerlidir; önceki sürümlerde bildirime yazılır.
             if (soundUri != null && Build.VERSION.SDK_INT < Build.VERSION_CODES.O) builder.setSound(soundUri)
 

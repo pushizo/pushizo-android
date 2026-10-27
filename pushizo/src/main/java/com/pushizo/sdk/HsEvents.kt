@@ -40,6 +40,7 @@ internal object HsEvents {
         locale: String,
         timezone: String,
         pushCapable: Boolean,
+        formFactor: String = "phone",
     ): JSONObject = JSONObject()
         .put("model", model)
         .put("os", "Android")
@@ -50,4 +51,5 @@ internal object HsEvents {
         .put("locale", locale)
         .put("timezone", timezone)
         .put("push_capable", pushCapable)
+        .put("form_factor", formFactor)
 }
