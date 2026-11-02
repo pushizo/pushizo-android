@@ -24,10 +24,25 @@ interface HsPushProvider {
     fun requestToken(context: Context, onToken: (String) -> Unit, onError: (Throwable) -> Unit)
 }
 
+/**
+ * Ana push aboneliğinin yanında ikincil kanal kaydı yapan eklenti modülü (ör. `pushizo-adm`: Fire OS ADM). Çekirdek
+ * modülü yansıma ile bulur ve ağ çağrısına izin verildiğinde (gizlilik onayı) her başlatmada [start] çağırır. Uygulama
+ * kodunun bu arayüzü uygulaması gerekmez.
+ */
+interface HsPushRegistrar {
+    /** Kaydı başlatır veya mevcut kayıt kimliğini [HsPushBridge] üzerinden bildirir; engellememeli, hata fırlatmamalı. */
+    fun start(context: Context)
+}
+
 /** Sağlayıcı seçimi: bir cihazda yalnızca bir push aboneliği (`android_push` veya `hms_push`) bulunur. */
 internal object HsPushProviders {
     const val CHANNEL_FCM = "android_push"
     const val CHANNEL_HMS = "hms_push"
+    /** Fire OS ADM: ana abonelikten ayrı ikincil push aboneliği (`Pushizo.User.registerAdm`). */
+    const val CHANNEL_ADM = "adm_push"
+
+    /** `pushizo-adm` modülünün kayıt sınıfı; modül eklenmişse yansıma ile bulunur (çekirdek Amazon ADM'ye bağımlı değildir). */
+    const val ADM_REGISTRAR_CLASS = "com.pushizo.sdk.adm.AdmRegistrar"
 
     /** `pushizo-hms` modülünün sağlayıcı sınıfı; modül eklenmişse yansıma ile bulunur (çekirdek HMS'e bağımlı değildir). */
     const val HMS_PROVIDER_CLASS = "com.pushizo.sdk.hms.HmsPushProvider"
@@ -57,6 +72,13 @@ internal object HsPushProviders {
     fun hmsProvider(): HsPushProvider? = runCatching {
         Class.forName(HMS_PROVIDER_CLASS).getDeclaredConstructor().newInstance() as HsPushProvider
     }.getOrNull()
+
+    /** Eklenmiş ikincil kayıt modülleri (şu an yalnızca `pushizo-adm`); modül yoksa boş liste. */
+    fun registrars(): List<HsPushRegistrar> = listOfNotNull(
+        runCatching {
+            Class.forName(ADM_REGISTRAR_CLASS).getDeclaredConstructor().newInstance() as HsPushRegistrar
+        }.getOrNull(),
+    )
 
     /** Bu cihazda kullanılacak sağlayıcı. */
     fun resolve(context: Context): HsPushProvider {
@@ -90,6 +112,7 @@ internal object HsFcmPushProvider : HsPushProvider {
 object HsPushBridge {
     const val CHANNEL_FCM: String = HsPushProviders.CHANNEL_FCM
     const val CHANNEL_HMS: String = HsPushProviders.CHANNEL_HMS
+    const val CHANNEL_ADM: String = HsPushProviders.CHANNEL_ADM
 
     /** Sağlayıcı servisinden gelen yeni/yenilenen token; SDK gerekirse kayıtlı yapılandırmayla başlatılır. */
     @JvmStatic
@@ -104,6 +127,21 @@ object HsPushBridge {
         if (Pushizo.ensureInitialized(context.applicationContext)) {
             Pushizo.reportError(Pushizo.tokenErrorCode(channel), "$channel token alınamadı", error)
         }
+    }
+
+    /**
+     * Fire OS ADM kayıt kimliği (`pushizo-adm` modülü): `adm_push` aboneliği olarak kaydedilir (bkz.
+     * [Pushizo.User.registerAdm]); önceki kimlik varsa aboneliği silinir. SDK gerekirse kayıtlı yapılandırmayla başlatılır.
+     */
+    @JvmStatic
+    fun onAdmRegistered(context: Context, registrationId: String) {
+        if (Pushizo.ensureInitialized(context.applicationContext)) Pushizo.onAdmRegistered(registrationId)
+    }
+
+    /** ADM kaydı silindi (uygulama veya Amazon tarafından): ilgili `adm_push` aboneliği sunucudan silinir. */
+    @JvmStatic
+    fun onAdmUnregistered(context: Context, registrationId: String?) {
+        if (Pushizo.ensureInitialized(context.applicationContext)) Pushizo.onAdmUnregistered(registrationId)
     }
 
     /**

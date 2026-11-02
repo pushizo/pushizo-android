@@ -313,6 +313,7 @@ object Pushizo {
                 HsLog.w("$channel token alınamadı", it)
                 reportError(tokenErrorCode(channel), "$channel token alınamadı", it)
             }
+            startPushRegistrars()
             if (queue?.flush() == false) scheduleFlush()
             // Onay yeni verildiyse ve uygulama ön plandaysa konum paylaşımı da başlar.
             if (isInForeground()) shareLocationIfDue()
@@ -337,8 +338,39 @@ object Pushizo {
     internal fun activePushChannel(): String = pushProvider?.channel ?: HsPushProviders.CHANNEL_FCM
 
     /** Token hatası rapor kodu (FCM için önceki sürümlerle aynı `fcm_token_failed`). */
-    internal fun tokenErrorCode(channel: String): String =
-        if (channel == HsPushProviders.CHANNEL_HMS) "hms_token_failed" else "fcm_token_failed"
+    internal fun tokenErrorCode(channel: String): String = when (channel) {
+        HsPushProviders.CHANNEL_HMS -> "hms_token_failed"
+        HsPushProviders.CHANNEL_ADM -> "adm_token_failed"
+        else -> "fcm_token_failed"
+    }
+
+    /** İkincil kayıt modüllerini (ör. `pushizo-adm`) başlatır; modül hatası SDK başlatmasını durdurmaz. */
+    private fun startPushRegistrars() {
+        val ctx = appContext ?: return
+        for (registrar in HsPushProviders.registrars()) {
+            runCatching { registrar.start(ctx) }.onFailure { HsLog.w("ek push kaydı başlatılamadı", it) }
+        }
+    }
+
+    /** `pushizo-adm` modülünden gelen kayıt kimliği: eski kimliklerin aboneliği silinir, yenisi kaydedilir. */
+    internal fun onAdmRegistered(registrationId: String) {
+        val store = storage ?: return
+        val known = HsAdmRegistration.known(store.contacts(HsPushProviders.CHANNEL_ADM).keys, store.queue)
+        val ops = HsAdmRegistration.registrationOps(known, registrationId, System.currentTimeMillis())
+        if (ops == null) {
+            HsLog.w("ADM kayıt kimliği geçersiz")
+            reportError("adm_registration_invalid", "ADM kayıt kimliği geçersiz")
+            return
+        }
+        ops.forEach(::enqueue)
+    }
+
+    /** ADM kaydı silindi: kimlik verildiyse o abonelik, verilmediyse bu cihazın bütün `adm_push` abonelikleri silinir. */
+    internal fun onAdmUnregistered(registrationId: String?) {
+        val store = storage ?: return
+        val known = HsAdmRegistration.known(store.contacts(HsPushProviders.CHANNEL_ADM).keys, store.queue)
+        HsAdmRegistration.unregistrationOps(known, registrationId, System.currentTimeMillis()).forEach(::enqueue)
+    }
 
     /** Etkin sağlayıcının token'ını alır; değiştiyse (veya kayıt yoksa) sunucuya kaydeder. */
     internal fun refreshPushToken() {
@@ -988,11 +1020,13 @@ object Pushizo {
         /** E-posta aboneliği ekler (küçük harfe çevrilir); geçersiz adreste `IllegalArgumentException`. Çevrimdışıyken kuyrukta bekler. */
         @JvmStatic fun addEmail(email: String) = contactOp("contact_add", "email", requireNotNull(HsContacts.normalizeEmail(email)) { INVALID_EMAIL })
 
-        /** Fire OS ADM kayıt kimliği. Ana FCM aboneliğinin yerine geçmez. */
+        /**
+         * Fire OS ADM kayıt kimliği. Ana FCM aboneliğinin yerine geçmez. `pushizo-adm` modülü eklendiyse kayıt ve kimlik
+         * yenileme otomatiktir; bu çağrı ADM kaydını kendisi yapan uygulamalar içindir.
+         */
         @JvmStatic fun registerAdm(token: String) {
-            val value = token.trim()
-            require(value.length in 8..4096) { "ADM registration id" }
-            contactOp("contact_add", "adm_push", value)
+            val value = requireNotNull(HsAdmRegistration.normalize(token)) { "ADM registration id" }
+            contactOp("contact_add", HsPushProviders.CHANNEL_ADM, value)
         }
 
         /** E-posta aboneliğini siler (`DELETE /subscriptions/{id}`). */

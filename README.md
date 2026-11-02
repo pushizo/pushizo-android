@@ -11,12 +11,13 @@
 
 ## English
 
-**Pushizo Android SDK** — Kotlin SDK for push via FCM (and Huawei HMS Push Kit on devices without Google Play Services), in-app messages, notification inbox, users, tags and aliases, email and SMS subscriptions, preferences, notification channels, location and live chat. minSdk 23; usable from Java.
+**Pushizo Android SDK** — Kotlin SDK for push via FCM (plus Huawei HMS Push Kit on devices without Google Play Services and Amazon ADM on Fire OS), in-app messages, notification inbox, users, tags and aliases, email and SMS subscriptions, preferences, notification channels, location and live chat. minSdk 23; usable from Java.
 
 ```kotlin
 dependencies {
     implementation("com.pushizo:pushizo-android:0.1.0")
     // Huawei (optional): implementation("com.pushizo:pushizo-android-hms:0.1.0")
+    // Amazon Fire OS (optional): implementation("com.pushizo:pushizo-android-adm:0.1.0")
 }
 ```
 
@@ -30,12 +31,13 @@ The detailed guide below is in Turkish; code samples are language-neutral. Full 
 
 Kotlin ile yazılmış Android SDK'sı: FCM üzerinden push, Google Play Services olmayan Huawei/Honor cihazlarında HMS Push
 Kit, in-app mesajlar, bildirim kutusu, kullanıcı/tag/alias, e-posta ve SMS abonelikleri, kullanıcı tercihleri,
-bildirim kanalları, konum ve canlı sohbet. `minSdk 23`, AGP 8. Java'dan da kullanılabilir.
+bildirim kanalları, konum ve canlı sohbet; Amazon Fire OS cihazlarında ADM. `minSdk 23`, AGP 8. Java'dan da kullanılabilir.
 
 | Modül | Maven koordinatı | Açıklama |
 |-------|------------------|----------|
 | [`pushizo`](pushizo) | `com.pushizo:pushizo-android` | Çekirdek SDK (FCM) |
 | [`pushizo-hms`](pushizo-hms) | `com.pushizo:pushizo-android-hms` | İsteğe bağlı Huawei HMS Push Kit modülü |
+| [`pushizo-adm`](pushizo-adm) | `com.pushizo:pushizo-android-adm` | İsteğe bağlı Amazon Fire OS (ADM) modülü |
 
 ## Kurulum
 
@@ -45,8 +47,15 @@ dependencies {
     implementation("com.pushizo:pushizo-android:0.1.0")
     // Huawei cihazları için (isteğe bağlı):
     // implementation("com.pushizo:pushizo-android-hms:0.1.0")
+    // Amazon Fire OS cihazları için (isteğe bağlı; Amazon ADM jar'ı yalnızca derleme zamanı eklenir):
+    // implementation("com.pushizo:pushizo-android-adm:0.1.0")
+    // compileOnly(files("libs/amazon-device-messaging-1.1.0.jar"))
 }
 ```
+
+Amazon ADM kütüphanesi Maven deposunda yoktur ve SDK ile paketlenmez: developer.amazon.com'dan indirilir, Fire OS
+sınıfları çalışma anında sağlar. `pushizo-adm` kaydı ve mesaj alımını otomatik yapar; Fire OS dışı cihazlarda sessizce
+devre dışı kalır.
 
 Maven Central yayını tamamlanana kadar bu depodan yerel Maven deposuna kurabilirsiniz:
 
@@ -80,7 +89,7 @@ Pushizo.login("user_42")
 
 Manifest'e ek bir şey gerekmez: izinler, mesajlaşma servisi ve tıklama alıcısı manifest birleştirmeyle eklenir.
 
-Huawei kurulumu, izin gözlemcisi, JWT ile kimlik doğrulama, kanallar, in-app mesajlar, bildirim kutusu, konum, canlı
+Huawei ve Fire OS kurulumu, izin gözlemcisi, JWT ile kimlik doğrulama, kanallar, in-app mesajlar, bildirim kutusu, konum, canlı
 sohbet ve sorun giderme: [docs.pushizo.com/docs/sdk/android](https://docs.pushizo.com/docs/sdk/android).
 
 <!-- pushizo:footer -->
