@@ -44,11 +44,11 @@ bildirim kanalları, konum ve canlı sohbet; Amazon Fire OS cihazlarında ADM. `
 ```kotlin
 // app/build.gradle.kts
 dependencies {
-    implementation("com.pushizo:pushizo-android:0.1.0")
+    implementation("com.pushizo:pushizo-android:0.2.0")
     // Huawei cihazları için (isteğe bağlı):
-    // implementation("com.pushizo:pushizo-android-hms:0.1.0")
+    // implementation("com.pushizo:pushizo-android-hms:0.2.0")
     // Amazon Fire OS cihazları için (isteğe bağlı; Amazon ADM jar'ı yalnızca derleme zamanı eklenir):
-    // implementation("com.pushizo:pushizo-android-adm:0.1.0")
+    // implementation("com.pushizo:pushizo-android-adm:0.2.0")
     // compileOnly(files("libs/amazon-device-messaging-1.1.0.jar"))
 }
 ```
