@@ -127,6 +127,16 @@ internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, H
         get() = prefs.getLong(KEY_LOCATION_LAST_SHARED_AT, 0L)
         set(value) = prefs.edit().putLong(KEY_LOCATION_LAST_SHARED_AT, value).apply()
 
+    /** Son alınan özellik bayrakları (ADR-0066). */
+    var featureFlagsJson: String?
+        get() = prefs.getString(KEY_FEATURE_FLAGS, null)
+        set(value) = prefs.edit().putString(KEY_FEATURE_FLAGS, value).apply()
+
+    /** Abonelik yokken kovanın hesaplandığı kalıcı rastgele kimlik. */
+    var featureFlagSubject: String?
+        get() = prefs.getString(KEY_FEATURE_FLAG_SUBJECT, null)
+        set(value) = prefs.edit().putString(KEY_FEATURE_FLAG_SUBJECT, value).apply()
+
     /** Arka plan bölge izleme açık mı (ADR-0065; varsayılan kapalı). */
     override var geofencingEnabled: Boolean
         get() = prefs.getBoolean(KEY_GEOFENCING_ENABLED, false)
@@ -256,6 +266,8 @@ internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, H
         const val KEY_PUSH_CHANNEL = "push_channel"
         const val KEY_LOCATION_SHARED = "location_shared"
         const val KEY_LOCATION_LAST_SHARED_AT = "location_last_shared_at"
+        const val KEY_FEATURE_FLAGS = "feature_flags"
+        const val KEY_FEATURE_FLAG_SUBJECT = "feature_flag_subject"
         const val KEY_GEOFENCING_ENABLED = "geofencing_enabled"
         const val KEY_GEOFENCE_LAST_SYNC_AT = "geofence_last_sync_at"
         const val KEY_GEOFENCE_LAST_SYNC_LAT = "geofence_last_sync_lat"

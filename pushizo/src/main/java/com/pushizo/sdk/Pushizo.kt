@@ -751,6 +751,7 @@ object Pushizo {
                 if (transition.started) enqueue(JSONObject().put("type", "session_start").put("at", now))
             }
             inApp?.onSessionStart()
+            scope.launch { refreshFeatureFlags() }
             // Dinleyici yoksa (ör. soğuk başlangıçta köprü henüz bağlanmadı) tıklama addClickListener'a kadar saklanır.
             if (clickListeners.isNotEmpty()) pendingClick?.let { click -> pendingClick = null; clickListeners.forEach { it(click) } }
             // Kullanıcı izni sistem ayarlarından değiştirmiş olabilir.
@@ -829,6 +830,25 @@ object Pushizo {
             } catch (e: HsApiException) {
                 HsLog.d("bölge listesi alınamadı: ${e.status}")
             }
+        }
+    }
+
+    /** Bayrakları sunucudan alır (ADR-0066). Hata son değerleri korur; onay beklenirken istek gönderilmez. */
+    private fun refreshFeatureFlags(): Boolean {
+        val store = storage ?: return false
+        val client = api ?: return false
+        if (!networkAllowed()) return false
+        val subject = store.featureFlagSubject ?: HsFeatureFlagRules.newSubject().also { store.featureFlagSubject = it }
+        val subId = engagementSubscriptionId()
+        var body = HsFeatureFlagRules.body(subId, subject)
+        if (subId != null) body = HsOwnership.withProof(body, ownershipToken(store, subId), store.externalId?.let { store.userIdentityHash })
+        return try {
+            val flags = HsFeatureFlagRules.parse(client.request("POST", "/feature-flags/evaluate", body)) ?: return false
+            store.featureFlagsJson = flags.toString()
+            true
+        } catch (e: HsApiException) {
+            HsLog.d("özellik bayrakları alınamadı: ${e.status}")
+            false
         }
     }
 
@@ -1504,6 +1524,31 @@ object Pushizo {
      * Bildirim kutusu (`add_to_inbox` mesajları). Login'de `identityHash` verildiyse isteklere eklenir.
      * Kotlin'de `suspend` sürümler, Java ve köprüler için [HsCallback] sürümleri kullanılır.
      */
+    /** Özellik bayrakları: değerler oturum başında yenilenir ve cihazda saklanır (ADR-0066). */
+    object FeatureFlags {
+        private fun cache(): JSONObject? = storage?.featureFlagsJson?.let { runCatching { JSONObject(it) }.getOrNull() }
+
+        /** Değerleri hemen yeniler; tamamlanınca [onComplete] başarı bilgisiyle çağrılır. */
+        @JvmStatic
+        @JvmOverloads
+        fun refresh(onComplete: ((Boolean) -> Unit)? = null) {
+            scope.launch {
+                val ok = refreshFeatureFlags()
+                onComplete?.invoke(ok)
+            }
+        }
+
+        /** Bayrak bu kullanıcı için açık mı; değer henüz yoksa [default]. */
+        @JvmStatic
+        @JvmOverloads
+        fun isEnabled(key: String, default: Boolean = false): Boolean = HsFeatureFlagRules.isEnabled(cache(), key, default)
+
+        /** Ham değer: metin, sayı, mantıksal, `JSONObject` veya `JSONArray`; değer yoksa [default]. */
+        @JvmStatic
+        @JvmOverloads
+        fun getValue(key: String, default: Any? = null): Any? = HsFeatureFlagRules.value(cache(), key) ?: default
+    }
+
     object Inbox {
         /** Kanıt: etkileşim aboneliğinin kayıtlı token'ı (veya kanonik adresi) özeti ve login'deki identity_hash (ADR-0016). */
         private fun ctx(): HsInboxAuth {
