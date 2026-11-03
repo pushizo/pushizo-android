@@ -282,6 +282,9 @@ object Pushizo {
         PushizoChat.onLogout()
         // Paylaşım tercihi korunur; onay yeniden verilince konum ilk ön plana geçişte hemen gönderilir.
         store.locationLastSharedAt = 0L
+        // Onay geri alındı: işletim sistemi bölgeleri izlemeyi bırakır, onay gelince yeniden kaydedilir.
+        appContext?.let { HsGeofenceMonitor.unregister(it) }
+        store.geofenceLastSyncAt = 0L
         appContext?.let { WorkManager.getInstance(it).cancelUniqueWork(FLUSH_WORK) }
         if (options.requiresPrivacyConsent && wasAllowed) closeSubscriptionAfterConsentRevoked(store, clearLocation)
     }
@@ -704,6 +707,11 @@ object Pushizo {
                 val body = HsOwnership.withProof(HsAdsRules.body(op), ownershipToken(store, subId), store.externalId?.let { store.userIdentityHash })
                 api.request("PATCH", "/subscriptions/$subId", body)
             }
+            HsGeofenceRules.OP_TYPE -> {
+                val subId = engagementSubscriptionId() ?: throw HsDeferredException("abonelik yok")
+                val body = HsOwnership.withProof(HsGeofenceRules.body(op), ownershipToken(store, subId), store.externalId?.let { store.userIdentityHash })
+                api.request("POST", "/subscriptions/$subId/geofence-events", body)
+            }
             HsLocationRules.OP_TYPE -> {
                 // Kuyrukta daha yeni konum işlemi varsa (ör. paylaşım kapatıldı) bu işlem gönderilmeden atılır.
                 if (HsLocationRules.isSuperseded(op, store.queue)) return
@@ -796,7 +804,40 @@ object Pushizo {
                 return@current
             }
             enqueue(op)
+            syncGeofencesIfDue(fix)
         }
+    }
+
+    /** Bölge listesini gerekirse yeniler ve işletim sistemine kaydeder (ADR-0065 §3). Hata izlemeyi durdurmaz: sonraki konumda yeniden denenir. */
+    private fun syncGeofencesIfDue(fix: HsLocationFix) {
+        val store = storage ?: return
+        val ctx = appContext ?: return
+        val client = api ?: return
+        val now = System.currentTimeMillis()
+        val uptime = android.os.SystemClock.elapsedRealtime()
+        if (!store.locationShared || !networkAllowed()) return
+        if (!HsGeofenceMonitor.isAvailable() || !HsGeofenceMonitor.backgroundPermissionGranted(ctx)) return
+        if (!HsGeofenceRules.isSyncDue(store, fix.lat, fix.lng, now, uptime)) return
+        scope.launch {
+            try {
+                val response = client.request("GET", "/geofences?lat=${fix.lat}&lng=${fix.lng}&limit=${HsGeofenceRules.MAX_REGIONS}")
+                HsGeofenceMonitor.register(ctx, HsGeofenceRules.parseRegions(response))
+                store.geofenceLastSyncAt = now
+                store.geofenceLastSyncLat = fix.lat
+                store.geofenceLastSyncLng = fix.lng
+                store.geofenceLastSyncUptime = uptime
+            } catch (e: HsApiException) {
+                HsLog.d("bölge listesi alınamadı: ${e.status}")
+            }
+        }
+    }
+
+    /** İşletim sisteminin bölge bildirimi: kalıcı kuyruğa yazılır, koordinat gönderilmez. Paylaşım veya onay kapalıysa atılır. */
+    internal fun reportGeofenceTransition(geofenceIds: List<String>, transition: String) {
+        val store = storage ?: return
+        if (!store.geofencingEnabled || !store.locationShared || !networkAllowed()) return
+        val now = System.currentTimeMillis()
+        geofenceIds.forEach { enqueue(HsGeofenceRules.op(it, transition, now)) }
     }
 
     private fun enqueueSessionEnd(durationSeconds: Int) =
@@ -1300,7 +1341,72 @@ object Pushizo {
                 return
             }
             store.locationLastSharedAt = 0L
+            // Paylaşım kapandı: bölge izleme de durur, tercih korunur.
+            appContext?.let { HsGeofenceMonitor.unregister(it) }
+            store.geofenceLastSyncAt = 0L
             if (wasShared) HsLocationRules.op(null, System.currentTimeMillis())?.let(::enqueue)
+        }
+
+        /** Arka plan bölge izleme açık mı (kalıcı tercih). */
+        @JvmStatic val isGeofencingEnabled: Boolean get() = storage?.geofencingEnabled ?: false
+
+        /** Arka plan konum izni verilmiş mi. */
+        @JvmStatic val backgroundPermissionGranted: Boolean get() = appContext?.let { HsGeofenceMonitor.backgroundPermissionGranted(it) } ?: false
+
+        /**
+         * Arka plan bölge izlemeyi açar veya kapatır (ADR-0065; varsayılan kapalı). İzlemeyi işletim sistemi yapar, sunucuya koordinat gitmez, yalnızca
+         * giriş ve çıkış bildirilir. [setShared] açık, arka plan izni verilmiş ve uygulamada `play-services-location` bağımlılığı ekli olmalıdır.
+         */
+        @JvmStatic fun setGeofencingEnabled(enabled: Boolean) {
+            val store = storage ?: return
+            store.geofencingEnabled = enabled
+            store.geofenceLastSyncAt = 0L
+            if (!enabled) {
+                appContext?.let { HsGeofenceMonitor.unregister(it) }
+                return
+            }
+            if (!HsGeofenceMonitor.isAvailable()) {
+                HsLog.w("bölge izleme başlatılamadı: uygulamada com.google.android.gms:play-services-location yok")
+                return
+            }
+            refreshGeofences()
+        }
+
+        /**
+         * Arka plan konum iznini ister: önce açıklama diyaloğu, sonra sistem istemi. Android 11 ve sonrasında sistem Ayarlar ekranını açar. Hassas konum izni önce verilmiş
+         * olmalıdır. Sonuç için Activity `onRequestPermissionsResult` içinden [onPermissionResult] çağrılır.
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun requestBackgroundPermission(activity: Activity, rationale: String? = null) {
+            if (HsGeofenceMonitor.backgroundPermissionGranted(activity)) {
+                onPermissionResult()
+                return
+            }
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                requestPermission(activity, rationale)
+                return
+            }
+            if (!HsGeofenceMonitor.backgroundPermissionDeclared(activity)) {
+                HsLog.w("arka plan konum izni istenemedi: uygulama manifest'inde ACCESS_BACKGROUND_LOCATION yok")
+                return
+            }
+            activity.runOnUiThread {
+                if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                android.app.AlertDialog.Builder(activity)
+                    .setTitle(R.string.hs_geofence_rationale_title)
+                    .setMessage(rationale?.takeIf { it.isNotBlank() } ?: activity.getString(R.string.hs_geofence_rationale_message))
+                    .setPositiveButton(R.string.hs_location_rationale_continue) { _, _ ->
+                        ActivityCompat.requestPermissions(activity, arrayOf(android.Manifest.permission.ACCESS_BACKGROUND_LOCATION), PERMISSION_REQUEST_CODE)
+                    }
+                    .setNegativeButton(R.string.hs_location_rationale_not_now, null)
+                    .show()
+            }
+        }
+
+        private fun refreshGeofences() {
+            val ctx = appContext ?: return
+            scope.launch { HsLocationProvider.current(ctx) { fix -> fix?.let(::syncGeofencesIfDue) } }
         }
 
         /**
@@ -1337,6 +1443,7 @@ object Pushizo {
         @JvmStatic fun onPermissionResult() {
             if (!permissionGranted) return
             scope.launch { shareLocationIfDue() }
+            if (storage?.geofencingEnabled == true) refreshGeofences()
         }
     }
 

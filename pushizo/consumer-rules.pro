@@ -12,3 +12,6 @@
 -keepclassmembers class com.pushizo.sdk.HsHtmlNativeBridge {
     @android.webkit.JavascriptInterface <methods>;
 }
+
+# Arka plan bölge izleme isteğe bağlıdır: bağımlılığı eklemeyen uygulamada R8 eksik sınıf hatası vermesin.
+-dontwarn com.google.android.gms.location.**

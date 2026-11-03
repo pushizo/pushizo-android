@@ -9,7 +9,7 @@ import org.json.JSONObject
  * Cihazda kalıcı SDK durumu (SharedPreferences, app başına). İkincil kurucu birim testlerinde bellek içi
  * [SharedPreferences] ile kullanılır.
  */
-internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, HsSessionTracker.State, HsLocationRules.State, HsChatState {
+internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, HsSessionTracker.State, HsLocationRules.State, HsGeofenceRules.State, HsChatState {
     constructor(context: Context, appId: String) :
         this(context.applicationContext.getSharedPreferences("pushizo_$appId", Context.MODE_PRIVATE))
 
@@ -127,6 +127,27 @@ internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, H
         get() = prefs.getLong(KEY_LOCATION_LAST_SHARED_AT, 0L)
         set(value) = prefs.edit().putLong(KEY_LOCATION_LAST_SHARED_AT, value).apply()
 
+    /** Arka plan bölge izleme açık mı (ADR-0065; varsayılan kapalı). */
+    override var geofencingEnabled: Boolean
+        get() = prefs.getBoolean(KEY_GEOFENCING_ENABLED, false)
+        set(value) = prefs.edit().putBoolean(KEY_GEOFENCING_ENABLED, value).apply()
+
+    override var geofenceLastSyncAt: Long
+        get() = prefs.getLong(KEY_GEOFENCE_LAST_SYNC_AT, 0L)
+        set(value) = prefs.edit().putLong(KEY_GEOFENCE_LAST_SYNC_AT, value).apply()
+
+    override var geofenceLastSyncLat: Double
+        get() = Double.fromBits(prefs.getLong(KEY_GEOFENCE_LAST_SYNC_LAT, 0L))
+        set(value) = prefs.edit().putLong(KEY_GEOFENCE_LAST_SYNC_LAT, value.toRawBits()).apply()
+
+    override var geofenceLastSyncLng: Double
+        get() = Double.fromBits(prefs.getLong(KEY_GEOFENCE_LAST_SYNC_LNG, 0L))
+        set(value) = prefs.edit().putLong(KEY_GEOFENCE_LAST_SYNC_LNG, value.toRawBits()).apply()
+
+    override var geofenceLastSyncUptime: Long
+        get() = prefs.getLong(KEY_GEOFENCE_LAST_SYNC_UPTIME, 0L)
+        set(value) = prefs.edit().putLong(KEY_GEOFENCE_LAST_SYNC_UPTIME, value).apply()
+
     /** Onay yokken yapılan login/logout sunucuya henüz yansıtılmadı; onay verilince eşitlenir. */
     var identitySyncPending: Boolean
         get() = prefs.getBoolean(KEY_IDENTITY_SYNC_PENDING, false)
@@ -235,6 +256,11 @@ internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, H
         const val KEY_PUSH_CHANNEL = "push_channel"
         const val KEY_LOCATION_SHARED = "location_shared"
         const val KEY_LOCATION_LAST_SHARED_AT = "location_last_shared_at"
+        const val KEY_GEOFENCING_ENABLED = "geofencing_enabled"
+        const val KEY_GEOFENCE_LAST_SYNC_AT = "geofence_last_sync_at"
+        const val KEY_GEOFENCE_LAST_SYNC_LAT = "geofence_last_sync_lat"
+        const val KEY_GEOFENCE_LAST_SYNC_LNG = "geofence_last_sync_lng"
+        const val KEY_GEOFENCE_LAST_SYNC_UPTIME = "geofence_last_sync_uptime"
         const val KEY_REGISTERED_TOKEN = "registered_token"
         const val KEY_OPTED_IN = "opted_in"
         const val KEY_CONSENT = "consent"

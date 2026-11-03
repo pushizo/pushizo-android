@@ -33,6 +33,11 @@
             android:name=".NotificationDismissedReceiver"
             android:exported="false" />
 
+        <!-- Arka plan bölge izleme (isteğe bağlı): yalnızca uygulama açarsa sistem burayı çağırır. -->
+        <receiver
+            android:name=".HsGeofenceReceiver"
+            android:exported="false" />
+
         <!-- Varsayılan bildirim ikonu ve kanal; uygulama meta-data ile ezebilir. -->
         <meta-data
             android:name="com.pushizo.sdk.default_notification_icon"

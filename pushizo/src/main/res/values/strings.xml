@@ -10,4 +10,6 @@
     <string name="hs_location_rationale_message">We use your approximate location only while the app is open, to send you relevant nearby notifications. You can turn this off at any time.</string>
     <string name="hs_location_rationale_continue">Continue</string>
     <string name="hs_location_rationale_not_now">Not now</string>
+    <string name="hs_geofence_rationale_title">Allow background location</string>
+    <string name="hs_geofence_rationale_message">To notify you when you arrive at a place, the app needs location access all the time. Your coordinates are not sent; only entering or leaving an area is shared. You can turn this off at any time.</string>
 </resources>

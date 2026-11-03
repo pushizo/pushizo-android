@@ -7,4 +7,6 @@
     <string name="hs_location_rationale_message">Yakınınızdaki ilgili bildirimleri gönderebilmek için yaklaşık konumunuzu yalnızca uygulama açıkken kullanırız. Bu ayarı istediğiniz zaman kapatabilirsiniz.</string>
     <string name="hs_location_rationale_continue">Devam</string>
     <string name="hs_location_rationale_not_now">Şimdi değil</string>
+    <string name="hs_geofence_rationale_title">Arka planda konuma izin verin</string>
+    <string name="hs_geofence_rationale_message">Bir yere vardığınızda haber verebilmek için uygulamanın konuma her zaman erişmesi gerekir. Koordinatlarınız gönderilmez, yalnızca bir bölgeye girip çıktığınız paylaşılır. Bunu istediğiniz zaman kapatabilirsiniz.</string>
 </resources>
