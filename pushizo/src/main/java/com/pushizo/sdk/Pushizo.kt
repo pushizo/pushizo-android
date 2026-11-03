@@ -53,6 +53,22 @@ class HsForegroundEvent(val notification: HsNotification) {
     internal fun markDisplayed(): Boolean = displayed.compareAndSet(false, true)
 }
 
+/**
+ * Girişle birlikte ayarlanan profil: `Pushizo.login("user_42", HsUserProfile(email = "ali@ornek.com"))`.
+ * Geçersiz e-posta veya telefon girişten önce reddedilir; yarım kalmış bir kimlik değişimi olmaz.
+ */
+data class HsUserProfile(
+    val email: String? = null,
+    val sms: String? = null,
+    val tags: Map<String, String> = emptyMap(),
+    val aliases: Map<String, String> = emptyMap(),
+) {
+    internal fun validate() {
+        email?.let { requireNotNull(HsContacts.normalizeEmail(it)) { "Geçersiz e-posta adresi" } }
+        sms?.let { requireNotNull(HsContacts.normalizePhone(it)) { "Geçersiz telefon numarası" } }
+    }
+}
+
 /** Abonelik durumu (gözlemciler için). */
 data class HsPushSubscriptionState(val id: String?, val token: String?, val optedIn: Boolean, val permission: Boolean)
 
@@ -856,6 +872,18 @@ object Pushizo {
     }
 
     // --- Public API ---
+
+    /** Kullanıcıyı kimliklendirir ve [profile] alanlarını tek çağrıda ayarlar. Kimlik kanıtı diğer `login` ile aynıdır. */
+    @JvmStatic
+    @JvmOverloads
+    fun login(externalId: String, profile: HsUserProfile, identityHash: String? = null, jwt: String? = null) {
+        profile.validate()
+        login(externalId, identityHash, jwt)
+        profile.email?.let { User.addEmail(it) }
+        profile.sms?.let { User.addSms(it) }
+        if (profile.tags.isNotEmpty()) User.addTags(profile.tags)
+        if (profile.aliases.isNotEmpty()) User.addAliases(profile.aliases)
+    }
 
     /**
      * Kullanıcıyı kimliklendirir. Kimlik kanıtı app ayarına göre HMAC [identityHash] ve/veya sunucunuzda imzalanmış

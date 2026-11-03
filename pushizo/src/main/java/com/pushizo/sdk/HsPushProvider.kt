@@ -1,8 +1,11 @@
 package com.pushizo.sdk
 
 import android.content.Context
+import android.content.pm.PackageManager
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailabilityLight
+import com.google.android.gms.tasks.Task
+import com.google.firebase.installations.FirebaseInstallations
 import com.google.firebase.messaging.FirebaseMessaging
 import org.json.JSONObject
 
@@ -99,10 +102,55 @@ internal object HsFcmPushProvider : HsPushProvider {
     override fun isAvailable(context: Context): Boolean = HsPushProviders.gmsAvailable(context)
 
     override fun requestToken(context: Context, onToken: (String) -> Unit, onError: (Throwable) -> Unit) {
+        if (HsFcmRegistration.fidEnabled(context)) {
+            requestInstallationId(onToken, onError)
+            return
+        }
         FirebaseMessaging.getInstance().token
             .addOnSuccessListener { token -> onToken(token) }
             .addOnFailureListener { e -> onError(e) }
     }
+
+    /** Firebase Installation ID kipi: önce FCM kaydı tamamlanır, kimlik sonra okunur; kaydsız kimliğe teslimat yapılamaz. */
+    private fun requestInstallationId(onToken: (String) -> Unit, onError: (Throwable) -> Unit) {
+        val registration = try {
+            HsFcmRegistration.invokeRegister(FirebaseMessaging.getInstance())
+        } catch (e: ReflectiveOperationException) {
+            onError(IllegalStateException(HsFcmRegistration.MISSING_REGISTER, e))
+            return
+        }
+        registration
+            .addOnSuccessListener {
+                FirebaseInstallations.getInstance().id
+                    .addOnSuccessListener { id -> onToken(id) }
+                    .addOnFailureListener { e -> onError(e) }
+            }
+            .addOnFailureListener { e -> onError(e) }
+    }
+}
+
+/**
+ * Firebase Installation ID (FID) kaydı. `firebase_messaging_installation_id_enabled` bildirimi uygulama genelinde
+ * `getToken()`'ı kapatır; bayrağı başka bir SDK da manifest birleşmesiyle ekleyebilir, bu yüzden her istekte okunur.
+ * SDK firebase-messaging 24.x ile derlenir ve `register()` 25.1.2'de geldiği için yansımayla çağrılır.
+ */
+internal object HsFcmRegistration {
+    const val FID_META_KEY = "firebase_messaging_installation_id_enabled"
+    const val MISSING_REGISTER = "Firebase Installation ID kipi firebase-messaging 25.1.2 veya üstünü gerektirir."
+
+    /** Manifest değeri `android:value="true"` için Boolean, kaynak üzerinden gelirse metin olabilir. */
+    fun isFidValue(value: Any?): Boolean = value == true || (value as? String)?.equals("true", ignoreCase = true) == true
+
+    fun fidEnabled(context: Context): Boolean = try {
+        val info = context.packageManager.getApplicationInfo(context.packageName, PackageManager.GET_META_DATA)
+        @Suppress("DEPRECATION")
+        isFidValue(info.metaData?.get(FID_META_KEY))
+    } catch (_: PackageManager.NameNotFoundException) {
+        false
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    fun invokeRegister(messaging: Any): Task<Any?> = messaging.javaClass.getMethod("register").invoke(messaging) as Task<Any?>
 }
 
 /**

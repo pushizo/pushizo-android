@@ -31,6 +31,15 @@ class PushizoMessagingService : FirebaseMessagingService() {
         HsPushBridge.onNewToken(applicationContext, HsPushProviders.CHANNEL_FCM, token)
     }
 
+    /**
+     * Firebase Installation ID kipinde `onNewToken` yerine bu çağrılır. firebase-messaging 25.1.2'de gelir; SDK 24.x ile
+     * derlendiği için `override` yazılamaz, 25.x çalışma zamanında aynı imzayı ezer.
+     */
+    fun onRegistered(installationId: String) {
+        HsLog.d("Firebase Installation ID yenilendi")
+        HsPushBridge.onNewToken(applicationContext, HsPushProviders.CHANNEL_FCM, installationId)
+    }
+
     override fun onMessageReceived(message: RemoteMessage) {
         handle(
             context = applicationContext,

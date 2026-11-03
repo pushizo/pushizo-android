@@ -14,7 +14,7 @@ android {
     defaultConfig {
         minSdk = 23
         consumerProguardFiles("consumer-rules.pro")
-        buildConfigField("String", "SDK_VERSION", "\"0.2.0\"")
+        buildConfigField("String", "SDK_VERSION", "\"0.2.1\"")
     }
 
     buildFeatures {
@@ -60,7 +60,7 @@ publishing {
         register<MavenPublication>("release") {
             groupId = "com.pushizo"
             artifactId = "pushizo-android"
-            version = "0.2.0"
+            version = "0.2.1"
             afterEvaluate { from(components["release"]) }
             pom {
                 name.set("Pushizo Android SDK")
