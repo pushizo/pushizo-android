@@ -1524,6 +1524,49 @@ object Pushizo {
      * Bildirim kutusu (`add_to_inbox` mesajları). Login'de `identityHash` verildiyse isteklere eklenir.
      * Kotlin'de `suspend` sürümler, Java ve köprüler için [HsCallback] sürümleri kullanılır.
      */
+    /**
+     * Gömülü yerleşimler (ADR-0068): uygulamanın ayırdığı alana içerik. Model döner, çizim uygulamanındır; içerik ekrana gelince [reportImpression] çağrılır.
+     * Abonelik yoksa veya onay bekleniyorsa liste boştur.
+     */
+    object Placements {
+        private val KEY = Regex("^[a-z][a-z0-9_.-]{0,63}$")
+
+        /** Alanın içeriği; [callback] arka plan iş parçacığında çağrılır. Hata boş liste döner. */
+        @JvmStatic
+        @JvmOverloads
+        fun list(key: String, limit: Int = 1, callback: (List<HsInAppMessage>) -> Unit) {
+            require(KEY.matches(key)) { "Geçersiz yerleşim anahtarı." }
+            require(limit in 1..10) { "limit 1-10 olmalı." }
+            val store = storage
+            val client = api
+            val subId = engagementSubscriptionId()
+            if (store == null || client == null || subId == null || !networkAllowed()) return callback(emptyList())
+            scope.launch {
+                val proof = ownershipToken(store, subId)?.let { "&token_hash=" + HsOwnership.tokenHash(it) }.orEmpty()
+                val result = try {
+                    HsInAppParser.parseList(client.request("GET", "/placements/$key?subscription_id=${URLEncoder.encode(subId, "UTF-8")}$proof&supports=&limit=$limit"))
+                } catch (e: HsApiException) {
+                    HsLog.d("yerleşim alınamadı: ${e.status}")
+                    emptyList()
+                }
+                callback(result)
+            }
+        }
+
+        @JvmStatic fun reportImpression(message: HsInAppMessage) = record(message, "impression", null)
+
+        @JvmStatic fun reportClick(message: HsInAppMessage, buttonId: String) = record(message, "click", buttonId)
+
+        @JvmStatic fun reportDismiss(message: HsInAppMessage) = record(message, "dismiss", null)
+
+        private fun record(message: HsInAppMessage, type: String, buttonId: String?) {
+            val op = JSONObject().put("type", "in_app_event").put("message_id", message.id).put("event", type).put("at", System.currentTimeMillis())
+            buttonId?.let { op.put("button_id", it) }
+            message.variantId?.let { op.put("variant_id", it) }
+            enqueue(op)
+        }
+    }
+
     /** Özellik bayrakları: değerler oturum başında yenilenir ve cihazda saklanır (ADR-0066). */
     object FeatureFlags {
         private fun cache(): JSONObject? = storage?.featureFlagsJson?.let { runCatching { JSONObject(it) }.getOrNull() }
