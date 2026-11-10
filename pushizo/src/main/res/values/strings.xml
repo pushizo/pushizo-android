@@ -12,4 +12,10 @@
     <string name="hs_location_rationale_not_now">Not now</string>
     <string name="hs_geofence_rationale_title">Allow background location</string>
     <string name="hs_geofence_rationale_message">To notify you when you arrive at a place, the app needs location access all the time. Your coordinates are not sent; only entering or leaving an area is shared. You can turn this off at any time.</string>
+    <!-- Hazır içerik kartı görünümü (HsContentCardsView; uygulama aynı adla ezebilir). -->
+    <string name="hs_cards_empty">No cards yet</string>
+    <string name="hs_cards_error">Cards could not be loaded.</string>
+    <string name="hs_cards_retry">Try again</string>
+    <string name="hs_cards_dismiss">Dismiss card</string>
+    <string name="hs_cards_pinned">Pinned</string>
 </resources>
