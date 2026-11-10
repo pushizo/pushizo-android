@@ -1653,6 +1653,53 @@ object Pushizo {
         }
     }
 
+    /**
+     * İçerik kartları (ADR-0082): kalıcı kart akışı (`content_card` mesajları). Kartlar bildirim kutusu listesinde
+     * görünmez. Gösterimde [logImpression], tıklamada [logClick], kapatmada [dismiss] çağrılır.
+     */
+    object ContentCards {
+        private fun ctx(): HsInboxAuth {
+            val store = storage ?: throw IllegalStateException("Pushizo.initialize önce çağrılmalı")
+            val subId = engagementSubscriptionId() ?: throw IllegalStateException("Abonelik henüz kaydedilmedi")
+            val userId = store.userId ?: throw IllegalStateException("Kullanıcı henüz kaydedilmedi")
+            return HsInboxAuth(userId, subId, ownershipToken(store, subId)?.let(HsOwnership::tokenHash), store.userIdentityHash)
+        }
+
+        private fun enc(value: String) = URLEncoder.encode(value, "UTF-8")
+        private fun call(method: String, path: String, body: JSONObject? = null): JSONObject =
+            api?.request(method, path, body) ?: throw IllegalStateException("Pushizo.initialize önce çağrılmalı")
+
+        private fun feedBlocking(limit: Int): HsContentCardFeed {
+            require(limit in 1..100) { "limit 1-100 olmalı." }
+            val c = ctx()
+            return HsContentCardParser.parseFeed(call("GET", "${c.cardsPath()}?${c.query()}&limit=$limit"))
+        }
+
+        private fun eventBlocking(id: String, event: String): HsContentCard {
+            val c = ctx()
+            return HsContentCardParser.parseCard(call("POST", "${c.cardsPath()}/${enc(id)}/$event", c.body()))
+        }
+
+        /** Kart akışı (sabitlenmiş → öncelik → yeni; `limit` 1-100). */
+        suspend fun list(limit: Int = 50): HsContentCardFeed = withContext(Dispatchers.IO) { feedBlocking(limit) }
+        /** Kart ekranda gösterildi (ilk gösterim kaydedilir). */
+        suspend fun logImpression(id: String): HsContentCard = withContext(Dispatchers.IO) { eventBlocking(id, "impression") }
+        /** Karta tıklandı (gösterim ve okundu da sayılır). */
+        suspend fun logClick(id: String): HsContentCard = withContext(Dispatchers.IO) { eventBlocking(id, "click") }
+        /** Kart kapatıldı; akıştan kalkar. */
+        suspend fun dismiss(id: String): HsContentCard = withContext(Dispatchers.IO) { eventBlocking(id, "dismiss") }
+
+        @JvmStatic @JvmOverloads
+        fun list(limit: Int = 50, callback: HsCallback<HsContentCardFeed>) = async(callback) { feedBlocking(limit) }
+        @JvmStatic fun logImpression(id: String, callback: HsCallback<HsContentCard>) = async(callback) { eventBlocking(id, "impression") }
+        @JvmStatic fun logClick(id: String, callback: HsCallback<HsContentCard>) = async(callback) { eventBlocking(id, "click") }
+        @JvmStatic fun dismiss(id: String, callback: HsCallback<HsContentCard>) = async(callback) { eventBlocking(id, "dismiss") }
+
+        private fun <T> async(callback: HsCallback<T>, block: () -> T) {
+            scope.launch { callback.onResult(runCatching(block)) }
+        }
+    }
+
     /** Canlı sohbet (ADR-0040); ayrıntı [PushizoChat]. Java: `Pushizo.Chat.sendMessage(...)`. */
     @JvmField val Chat: PushizoChat = PushizoChat
 
