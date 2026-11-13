@@ -1545,8 +1545,12 @@ object Pushizo {
                 val proof = ownershipToken(store, subId)?.let { "&token_hash=" + HsOwnership.tokenHash(it) }.orEmpty()
                 val result = try {
                     HsInAppParser.parseList(client.request("GET", "/placements/$key?subscription_id=${URLEncoder.encode(subId, "UTF-8")}$proof&supports=&limit=$limit"))
-                } catch (e: HsApiException) {
-                    HsLog.d("yerleşim alınamadı: ${e.status}")
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // HsApiException dışında 2xx ama JSON olmayan gövde (ör. captive portal HTML'i) JSONException
+                    // fırlatır; kapsamda işleyici olmadığı için yakalanmazsa uygulama çöker ve köprü yanıtı hiç dönmez.
+                    HsLog.d("yerleşim alınamadı: ${(e as? HsApiException)?.status ?: e.javaClass.simpleName}")
                     emptyList()
                 }
                 callback(result)

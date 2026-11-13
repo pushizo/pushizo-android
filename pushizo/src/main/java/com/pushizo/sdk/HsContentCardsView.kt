@@ -83,6 +83,8 @@ class HsContentCardsView @JvmOverloads constructor(
     private var scope: CoroutineScope? = null
     private var loadJob: Job? = null
     private var loaded = false
+    /** Son yüklenen akış: ayrılıp yeniden eklenince (sekme, ViewPager, fragment yığını) iptal edilen görseller için. */
+    private var lastFeed: HsContentCardFeed? = null
     private val impressed = HashSet<String>()
     private val cardViews = LinkedHashMap<String, Pair<View, HsContentCard>>()
     private val visibleRect = Rect()
@@ -101,7 +103,10 @@ class HsContentCardsView @JvmOverloads constructor(
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
         viewTreeObserver.addOnScrollChangedListener(scrollListener)
         viewTreeObserver.addOnGlobalLayoutListener(layoutListener)
-        if (!loaded) refresh()
+        // Ayrılırken görsel indirmeleri kapsamla birlikte iptal edildi: yüklüyse kartlar yeniden çizilir (görseller
+        // yeniden istenir), değilse akış yüklenir.
+        val feed = lastFeed
+        if (loaded && feed != null) render(feed) else refresh()
     }
 
     override fun onDetachedFromWindow() {
@@ -122,6 +127,7 @@ class HsContentCardsView @JvmOverloads constructor(
             try {
                 val feed = Pushizo.ContentCards.list(limit)
                 loaded = true
+                lastFeed = feed
                 render(feed)
                 onFeedLoaded?.invoke(feed)
             } catch (e: CancellationException) {
@@ -204,6 +210,8 @@ class HsContentCardsView @JvmOverloads constructor(
     private fun dismiss(card: HsContentCard) {
         val entry = cardViews.remove(card.id) ?: return
         list.removeView(entry.first)
+        // Yeniden eklenmede yeniden çizim kapatılan kartı geri getirmesin.
+        lastFeed = lastFeed?.let { f -> f.copy(cards = f.cards.filter { it.id != card.id }) }
         if (cardViews.isEmpty()) show(HsContentCardsState.EMPTY)
         scope?.launch {
             try {
