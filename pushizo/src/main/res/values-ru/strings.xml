@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
+<resources>
+    <string name="hs_in_app_close">Закрыть</string>
+    <string name="hs_in_app_message">Сообщение</string>
+    <string name="hs_in_app_carousel_card">Карточка %1$d/%2$d: %3$s</string>
+    <string name="hs_location_rationale_title">Поделитесь местоположением</string>
+    <string name="hs_location_rationale_message">Мы используем Ваше приблизительное местоположение, только пока приложение открыто, чтобы отправлять Вам актуальные уведомления о местах поблизости. Вы можете отключить это в любой момент.</string>
+    <string name="hs_location_rationale_continue">Продолжить</string>
+    <string name="hs_location_rationale_not_now">Не сейчас</string>
+    <string name="hs_geofence_rationale_title">Разрешите доступ к местоположению в фоне</string>
+    <string name="hs_geofence_rationale_message">Чтобы уведомлять Вас о прибытии в определённое место, приложению нужен постоянный доступ к местоположению. Ваши координаты не передаются — сообщается только о входе в зону или выходе из неё. Вы можете отключить это в любой момент.</string>
+    <string name="hs_cards_empty">Карточек пока нет</string>
+    <string name="hs_cards_error">Не удалось загрузить карточки.</string>
+    <string name="hs_cards_retry">Повторить</string>
+    <string name="hs_cards_dismiss">Скрыть карточку</string>
+    <string name="hs_cards_pinned">Закреплено</string>
+</resources>

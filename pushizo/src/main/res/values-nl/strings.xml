@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
+<resources>
+    <string name="hs_in_app_close">Sluiten</string>
+    <string name="hs_in_app_message">Bericht</string>
+    <string name="hs_in_app_carousel_card">Kaart %1$d/%2$d: %3$s</string>
+    <string name="hs_location_rationale_title">Deel uw locatie</string>
+    <string name="hs_location_rationale_message">We gebruiken uw geschatte locatie alleen terwijl de app geopend is, om u relevante meldingen uit de buurt te sturen. U kunt dit op elk moment uitschakelen.</string>
+    <string name="hs_location_rationale_continue">Doorgaan</string>
+    <string name="hs_location_rationale_not_now">Niet nu</string>
+    <string name="hs_geofence_rationale_title">Locatie op de achtergrond toestaan</string>
+    <string name="hs_geofence_rationale_message">Om u een melding te sturen wanneer u op een plek aankomt, heeft de app altijd toegang tot uw locatie nodig. Uw coördinaten worden niet verzonden; alleen het binnenkomen of verlaten van een gebied wordt gedeeld. U kunt dit op elk moment uitschakelen.</string>
+    <string name="hs_cards_empty">Nog geen kaarten</string>
+    <string name="hs_cards_error">De kaarten konden niet worden geladen.</string>
+    <string name="hs_cards_retry">Opnieuw proberen</string>
+    <string name="hs_cards_dismiss">Kaart verbergen</string>
+    <string name="hs_cards_pinned">Vastgezet</string>
+</resources>

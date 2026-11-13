@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
+<resources>
+    <string name="hs_in_app_close">닫기</string>
+    <string name="hs_in_app_message">메시지</string>
+    <string name="hs_in_app_carousel_card">카드 %1$d/%2$d: %3$s</string>
+    <string name="hs_location_rationale_title">위치 공유</string>
+    <string name="hs_location_rationale_message">주변의 관련 알림을 보내 드리기 위해 앱이 열려 있는 동안에만 대략적인 위치를 사용합니다. 이 설정은 언제든지 끌 수 있습니다.</string>
+    <string name="hs_location_rationale_continue">계속</string>
+    <string name="hs_location_rationale_not_now">나중에</string>
+    <string name="hs_geofence_rationale_title">백그라운드 위치 허용</string>
+    <string name="hs_geofence_rationale_message">특정 장소에 도착했을 때 알려 드리려면 앱이 항상 위치에 접근할 수 있어야 합니다. 좌표는 전송되지 않으며, 지역에 들어오거나 나간 사실만 공유됩니다. 이 설정은 언제든지 끌 수 있습니다.</string>
+    <string name="hs_cards_empty">아직 카드가 없습니다</string>
+    <string name="hs_cards_error">카드를 불러오지 못했습니다.</string>
+    <string name="hs_cards_retry">다시 시도</string>
+    <string name="hs_cards_dismiss">카드 닫기</string>
+    <string name="hs_cards_pinned">고정됨</string>
+</resources>

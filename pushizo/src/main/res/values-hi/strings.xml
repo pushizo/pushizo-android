@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
+<resources>
+    <string name="hs_in_app_close">बंद करें</string>
+    <string name="hs_in_app_message">संदेश</string>
+    <string name="hs_in_app_carousel_card">कार्ड %1$d/%2$d: %3$s</string>
+    <string name="hs_location_rationale_title">अपना स्थान साझा करें</string>
+    <string name="hs_location_rationale_message">हम आपके अनुमानित स्थान का उपयोग केवल तब करते हैं जब ऐप खुला हो, ताकि आपको आस-पास की प्रासंगिक सूचनाएं भेज सकें। आप इसे कभी भी बंद कर सकते हैं।</string>
+    <string name="hs_location_rationale_continue">जारी रखें</string>
+    <string name="hs_location_rationale_not_now">अभी नहीं</string>
+    <string name="hs_geofence_rationale_title">बैकग्राउंड में स्थान की अनुमति दें</string>
+    <string name="hs_geofence_rationale_message">किसी स्थान पर पहुंचने पर आपको सूचित करने के लिए ऐप को हर समय स्थान की अनुमति चाहिए। आपके निर्देशांक नहीं भेजे जाते; केवल किसी क्षेत्र में प्रवेश करने या उससे बाहर निकलने की जानकारी साझा की जाती है। आप इसे कभी भी बंद कर सकते हैं।</string>
+    <string name="hs_cards_empty">अभी कोई कार्ड नहीं है</string>
+    <string name="hs_cards_error">कार्ड लोड नहीं हो सके।</string>
+    <string name="hs_cards_retry">फिर से कोशिश करें</string>
+    <string name="hs_cards_dismiss">कार्ड हटाएं</string>
+    <string name="hs_cards_pinned">पिन किया गया</string>
+</resources>

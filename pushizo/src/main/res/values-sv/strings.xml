@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
+<resources>
+    <string name="hs_in_app_close">Stäng</string>
+    <string name="hs_in_app_message">Meddelande</string>
+    <string name="hs_in_app_carousel_card">Kort %1$d/%2$d: %3$s</string>
+    <string name="hs_location_rationale_title">Dela din plats</string>
+    <string name="hs_location_rationale_message">Vi använder din ungefärliga plats endast medan appen är öppen, för att skicka relevanta aviseringar i närheten. Du kan stänga av detta när som helst.</string>
+    <string name="hs_location_rationale_continue">Fortsätt</string>
+    <string name="hs_location_rationale_not_now">Inte nu</string>
+    <string name="hs_geofence_rationale_title">Tillåt plats i bakgrunden</string>
+    <string name="hs_geofence_rationale_message">För att kunna meddela dig när du kommer fram till en plats behöver appen alltid ha åtkomst till din plats. Dina koordinater skickas inte; endast att du går in i eller lämnar ett område delas. Du kan stänga av detta när som helst.</string>
+    <string name="hs_cards_empty">Inga kort ännu</string>
+    <string name="hs_cards_error">Det gick inte att läsa in korten.</string>
+    <string name="hs_cards_retry">Försök igen</string>
+    <string name="hs_cards_dismiss">Stäng kortet</string>
+    <string name="hs_cards_pinned">Fastnålat</string>
+</resources>

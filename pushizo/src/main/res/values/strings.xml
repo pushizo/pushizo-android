@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
 <resources>
     <!-- In-app mesaj erişilebilirlik etiketleri (uygulama aynı adla ezebilir). -->
     <string name="hs_in_app_close">Close</string>
     <string name="hs_in_app_message">Message</string>
-    <!-- Carousel kartı ekran okuyucu etiketi: sıra, toplam, kart başlığı. -->
     <string name="hs_in_app_carousel_card">Card %1$d/%2$d: %3$s</string>
     <!-- Konum izni açıklama diyaloğu (Pushizo.Location.requestPermission; uygulama aynı adla ezebilir). -->
     <string name="hs_location_rationale_title">Share your location</string>

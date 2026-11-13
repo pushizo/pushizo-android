@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
+<resources>
+    <string name="hs_in_app_close">关闭</string>
+    <string name="hs_in_app_message">消息</string>
+    <string name="hs_in_app_carousel_card">卡片 %1$d/%2$d：%3$s</string>
+    <string name="hs_location_rationale_title">共享您的位置</string>
+    <string name="hs_location_rationale_message">为了向您发送附近的相关通知，我们仅在应用打开期间使用您的大致位置。您可以随时关闭此功能。</string>
+    <string name="hs_location_rationale_continue">继续</string>
+    <string name="hs_location_rationale_not_now">以后再说</string>
+    <string name="hs_geofence_rationale_title">允许后台获取位置</string>
+    <string name="hs_geofence_rationale_message">为了在您到达某个地点时通知您，应用需要始终访问您的位置。我们不会发送您的坐标，仅共享您进入或离开某个区域的信息。您可以随时关闭此功能。</string>
+    <string name="hs_cards_empty">暂无卡片</string>
+    <string name="hs_cards_error">无法加载卡片。</string>
+    <string name="hs_cards_retry">重试</string>
+    <string name="hs_cards_dismiss">关闭卡片</string>
+    <string name="hs_cards_pinned">已置顶</string>
+</resources>

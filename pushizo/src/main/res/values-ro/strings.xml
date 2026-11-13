@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
+<resources>
+    <string name="hs_in_app_close">Închide</string>
+    <string name="hs_in_app_message">Mesaj</string>
+    <string name="hs_in_app_carousel_card">Cardul %1$d/%2$d: %3$s</string>
+    <string name="hs_location_rationale_title">Partajați locația</string>
+    <string name="hs_location_rationale_message">Folosim locația dumneavoastră aproximativă doar cât timp aplicația este deschisă, pentru a vă trimite notificări relevante din apropiere. Puteți dezactiva oricând această opțiune.</string>
+    <string name="hs_location_rationale_continue">Continuă</string>
+    <string name="hs_location_rationale_not_now">Nu acum</string>
+    <string name="hs_geofence_rationale_title">Permiteți locația în fundal</string>
+    <string name="hs_geofence_rationale_message">Pentru a vă anunța când ajungeți într-un anumit loc, aplicația are nevoie de acces permanent la locație. Coordonatele dumneavoastră nu sunt trimise; se transmite doar intrarea într-o zonă sau ieșirea din ea. Puteți dezactiva oricând această opțiune.</string>
+    <string name="hs_cards_empty">Încă nu există carduri</string>
+    <string name="hs_cards_error">Cardurile nu au putut fi încărcate.</string>
+    <string name="hs_cards_retry">Reîncearcă</string>
+    <string name="hs_cards_dismiss">Închide cardul</string>
+    <string name="hs_cards_pinned">Fixat</string>
+</resources>

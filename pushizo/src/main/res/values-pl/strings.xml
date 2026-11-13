@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
+<resources>
+    <string name="hs_in_app_close">Zamknij</string>
+    <string name="hs_in_app_message">Wiadomość</string>
+    <string name="hs_in_app_carousel_card">Karta %1$d/%2$d: %3$s</string>
+    <string name="hs_location_rationale_title">Udostępnianie lokalizacji</string>
+    <string name="hs_location_rationale_message">Przybliżona lokalizacja jest używana wyłącznie wtedy, gdy aplikacja jest otwarta, aby wysyłać trafne powiadomienia o pobliskich miejscach. Można to wyłączyć w dowolnym momencie.</string>
+    <string name="hs_location_rationale_continue">Dalej</string>
+    <string name="hs_location_rationale_not_now">Nie teraz</string>
+    <string name="hs_geofence_rationale_title">Zezwól na lokalizację w tle</string>
+    <string name="hs_geofence_rationale_message">Aby powiadomienie mogło pojawić się po dotarciu na miejsce, aplikacja potrzebuje stałego dostępu do lokalizacji. Współrzędne nie są wysyłane — udostępniana jest tylko informacja o wejściu do obszaru lub jego opuszczeniu. Można to wyłączyć w dowolnym momencie.</string>
+    <string name="hs_cards_empty">Brak kart</string>
+    <string name="hs_cards_error">Nie udało się wczytać kart.</string>
+    <string name="hs_cards_retry">Spróbuj ponownie</string>
+    <string name="hs_cards_dismiss">Ukryj kartę</string>
+    <string name="hs_cards_pinned">Przypięte</string>
+</resources>

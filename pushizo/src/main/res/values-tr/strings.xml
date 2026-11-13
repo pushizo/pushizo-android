@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
 <resources>
     <string name="hs_in_app_close">Kapat</string>
     <string name="hs_in_app_message">Mesaj</string>
@@ -9,7 +10,6 @@
     <string name="hs_location_rationale_not_now">Şimdi değil</string>
     <string name="hs_geofence_rationale_title">Arka planda konuma izin verin</string>
     <string name="hs_geofence_rationale_message">Bir yere vardığınızda haber verebilmek için uygulamanın konuma her zaman erişmesi gerekir. Koordinatlarınız gönderilmez, yalnızca bir bölgeye girip çıktığınız paylaşılır. Bunu istediğiniz zaman kapatabilirsiniz.</string>
-    <!-- Hazır içerik kartı görünümü (HsContentCardsView; uygulama aynı adla ezebilir). -->
     <string name="hs_cards_empty">Henüz kart yok</string>
     <string name="hs_cards_error">Kartlar yüklenemedi.</string>
     <string name="hs_cards_retry">Tekrar dene</string>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
+<resources>
+    <string name="hs_in_app_close">Bağla</string>
+    <string name="hs_in_app_message">Mesaj</string>
+    <string name="hs_in_app_carousel_card">Kart %1$d/%2$d: %3$s</string>
+    <string name="hs_location_rationale_title">Məkanınızı paylaşın</string>
+    <string name="hs_location_rationale_message">Təxmini məkanınızdan yalnız tətbiq açıq olduqda, sizə yaxınlıqdakı uyğun bildirişləri göndərmək üçün istifadə edirik. Bunu istənilən vaxt söndürə bilərsiniz.</string>
+    <string name="hs_location_rationale_continue">Davam et</string>
+    <string name="hs_location_rationale_not_now">İndi yox</string>
+    <string name="hs_geofence_rationale_title">Arxa fonda məkana icazə verin</string>
+    <string name="hs_geofence_rationale_message">Bir yerə çatdığınızda sizə bildiriş göndərmək üçün tətbiqin məkanınıza daim çıxışı olmalıdır. Koordinatlarınız göndərilmir; yalnız əraziyə daxil olmağınız və ya oradan çıxmağınız paylaşılır. Bunu istənilən vaxt söndürə bilərsiniz.</string>
+    <string name="hs_cards_empty">Hələ kart yoxdur</string>
+    <string name="hs_cards_error">Kartları yükləmək mümkün olmadı.</string>
+    <string name="hs_cards_retry">Yenidən cəhd et</string>
+    <string name="hs_cards_dismiss">Kartı gizlət</string>
+    <string name="hs_cards_pinned">Sabitlənib</string>
+</resources>

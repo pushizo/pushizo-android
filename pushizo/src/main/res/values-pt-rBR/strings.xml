@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
+<resources>
+    <string name="hs_in_app_close">Fechar</string>
+    <string name="hs_in_app_message">Mensagem</string>
+    <string name="hs_in_app_carousel_card">Cartão %1$d/%2$d: %3$s</string>
+    <string name="hs_location_rationale_title">Compartilhe sua localização</string>
+    <string name="hs_location_rationale_message">Usamos sua localização aproximada apenas enquanto o app está aberto, para enviar notificações relevantes perto de você. Você pode desativar isso a qualquer momento.</string>
+    <string name="hs_location_rationale_continue">Continuar</string>
+    <string name="hs_location_rationale_not_now">Agora não</string>
+    <string name="hs_geofence_rationale_title">Permitir localização em segundo plano</string>
+    <string name="hs_geofence_rationale_message">Para avisar você quando chegar a um local, o app precisa de acesso à localização o tempo todo. Suas coordenadas não são enviadas; apenas a entrada ou saída de uma área é compartilhada. Você pode desativar isso a qualquer momento.</string>
+    <string name="hs_cards_empty">Nenhum cartão ainda</string>
+    <string name="hs_cards_error">Não foi possível carregar os cartões.</string>
+    <string name="hs_cards_retry">Tentar novamente</string>
+    <string name="hs_cards_dismiss">Dispensar cartão</string>
+    <string name="hs_cards_pinned">Fixado</string>
+</resources>

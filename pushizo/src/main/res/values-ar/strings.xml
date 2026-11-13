@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
+<resources>
+    <string name="hs_in_app_close">إغلاق</string>
+    <string name="hs_in_app_message">رسالة</string>
+    <string name="hs_in_app_carousel_card">البطاقة %1$d/%2$d: %3$s</string>
+    <string name="hs_location_rationale_title">مشاركة موقعك</string>
+    <string name="hs_location_rationale_message">نستخدم موقعك التقريبي فقط أثناء فتح التطبيق، لنرسل إليك إشعارات مفيدة عمّا هو قريب منك. يمكنك إيقاف ذلك في أي وقت.</string>
+    <string name="hs_location_rationale_continue">متابعة</string>
+    <string name="hs_location_rationale_not_now">ليس الآن</string>
+    <string name="hs_geofence_rationale_title">السماح بالوصول إلى الموقع في الخلفية</string>
+    <string name="hs_geofence_rationale_message">لإعلامك عند وصولك إلى مكان ما، يحتاج التطبيق إلى الوصول إلى موقعك طوال الوقت. لا تُرسَل إحداثياتك؛ تتم مشاركة دخولك إلى منطقة ما أو خروجك منها فقط. يمكنك إيقاف ذلك في أي وقت.</string>
+    <string name="hs_cards_empty">لا توجد بطاقات بعد</string>
+    <string name="hs_cards_error">تعذّر تحميل البطاقات.</string>
+    <string name="hs_cards_retry">إعادة المحاولة</string>
+    <string name="hs_cards_dismiss">إخفاء البطاقة</string>
+    <string name="hs_cards_pinned">مثبّتة</string>
+</resources>

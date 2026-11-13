@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
+<resources>
+    <string name="hs_in_app_close">Đóng</string>
+    <string name="hs_in_app_message">Tin nhắn</string>
+    <string name="hs_in_app_carousel_card">Thẻ %1$d/%2$d: %3$s</string>
+    <string name="hs_location_rationale_title">Chia sẻ vị trí của bạn</string>
+    <string name="hs_location_rationale_message">Chúng tôi chỉ sử dụng vị trí gần đúng của bạn khi ứng dụng đang mở, để gửi cho bạn các thông báo phù hợp ở gần bạn. Bạn có thể tắt tính năng này bất cứ lúc nào.</string>
+    <string name="hs_location_rationale_continue">Tiếp tục</string>
+    <string name="hs_location_rationale_not_now">Để sau</string>
+    <string name="hs_geofence_rationale_title">Cho phép truy cập vị trí trong nền</string>
+    <string name="hs_geofence_rationale_message">Để thông báo cho bạn khi bạn đến một địa điểm, ứng dụng cần quyền truy cập vị trí mọi lúc. Tọa độ của bạn không được gửi đi; chỉ việc bạn vào hoặc rời khỏi một khu vực được chia sẻ. Bạn có thể tắt tính năng này bất cứ lúc nào.</string>
+    <string name="hs_cards_empty">Chưa có thẻ nào</string>
+    <string name="hs_cards_error">Không thể tải thẻ.</string>
+    <string name="hs_cards_retry">Thử lại</string>
+    <string name="hs_cards_dismiss">Bỏ qua thẻ</string>
+    <string name="hs_cards_pinned">Đã ghim</string>
+</resources>
