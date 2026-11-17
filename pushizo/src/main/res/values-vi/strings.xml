@@ -15,4 +15,8 @@
     <string name="hs_cards_retry">Thử lại</string>
     <string name="hs_cards_dismiss">Bỏ qua thẻ</string>
     <string name="hs_cards_pinned">Đã ghim</string>
+    <string name="hs_delivery_title">Đừng bỏ lỡ thông báo</string>
+    <string name="hs_delivery_message">Cài đặt pin trên thiết bị này có thể làm chậm thông báo. Để nhận thông báo đúng lúc, hãy cho phép ứng dụng chạy nền mà không bị hạn chế pin.</string>
+    <string name="hs_delivery_message_vendor">Thiết bị này có thể dừng các ứng dụng chạy nền, khiến thông báo đến trễ hoặc không đến. Để nhận thông báo đúng lúc, hãy bật tự khởi chạy cho ứng dụng này và gỡ hạn chế pin.</string>
+    <string name="hs_delivery_open_settings">Mở cài đặt</string>
 </resources>

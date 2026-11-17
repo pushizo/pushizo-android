@@ -15,4 +15,8 @@
     <string name="hs_cards_retry">Спробувати ще</string>
     <string name="hs_cards_dismiss">Приховати картку</string>
     <string name="hs_cards_pinned">Закріплено</string>
+    <string name="hs_delivery_title">Не пропускайте сповіщення</string>
+    <string name="hs_delivery_message">Налаштування акумулятора на цьому пристрої можуть затримувати сповіщення. Щоб отримувати їх вчасно, дозвольте застосунку працювати у фоновому режимі без обмежень акумулятора.</string>
+    <string name="hs_delivery_message_vendor">Цей пристрій може зупиняти застосунки у фоновому режимі, тому сповіщення можуть надходити із запізненням або не надходити зовсім. Щоб отримувати їх вчасно, увімкніть автозапуск для цього застосунку та зніміть обмеження акумулятора.</string>
+    <string name="hs_delivery_open_settings">Відкрити налаштування</string>
 </resources>

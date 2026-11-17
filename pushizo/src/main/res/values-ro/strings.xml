@@ -15,4 +15,8 @@
     <string name="hs_cards_retry">Reîncearcă</string>
     <string name="hs_cards_dismiss">Închide cardul</string>
     <string name="hs_cards_pinned">Fixat</string>
+    <string name="hs_delivery_title">Nu ratați notificările</string>
+    <string name="hs_delivery_message">Setările bateriei de pe acest dispozitiv pot întârzia notificările. Pentru a le primi la timp, permiteți aplicației să ruleze în fundal fără restricții de baterie.</string>
+    <string name="hs_delivery_message_vendor">Acest dispozitiv poate opri aplicațiile din fundal, astfel încât notificările pot sosi târziu sau deloc. Pentru a le primi la timp, activați pornirea automată pentru această aplicație și eliminați restricțiile de baterie.</string>
+    <string name="hs_delivery_open_settings">Deschideți setările</string>
 </resources>

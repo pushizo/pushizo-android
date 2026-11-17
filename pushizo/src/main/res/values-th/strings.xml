@@ -15,4 +15,8 @@
     <string name="hs_cards_retry">ลองอีกครั้ง</string>
     <string name="hs_cards_dismiss">ปิดการ์ด</string>
     <string name="hs_cards_pinned">ปักหมุดแล้ว</string>
+    <string name="hs_delivery_title">อย่าพลาดการแจ้งเตือน</string>
+    <string name="hs_delivery_message">การตั้งค่าแบตเตอรี่ของอุปกรณ์นี้อาจทำให้การแจ้งเตือนล่าช้า หากต้องการรับการแจ้งเตือนตรงเวลา โปรดอนุญาตให้แอปทำงานในเบื้องหลังโดยไม่มีข้อจำกัดด้านแบตเตอรี่</string>
+    <string name="hs_delivery_message_vendor">อุปกรณ์นี้อาจหยุดแอปที่ทำงานในเบื้องหลัง ทำให้การแจ้งเตือนมาช้าหรือไม่มาเลย หากต้องการรับการแจ้งเตือนตรงเวลา โปรดเปิดการเริ่มทำงานอัตโนมัติของแอปนี้และยกเลิกข้อจำกัดด้านแบตเตอรี่</string>
+    <string name="hs_delivery_open_settings">เปิดการตั้งค่า</string>
 </resources>

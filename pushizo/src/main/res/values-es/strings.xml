@@ -15,4 +15,8 @@
     <string name="hs_cards_retry">Reintentar</string>
     <string name="hs_cards_dismiss">Descartar tarjeta</string>
     <string name="hs_cards_pinned">Fijada</string>
+    <string name="hs_delivery_title">No se pierda ninguna notificación</string>
+    <string name="hs_delivery_message">Los ajustes de batería de este dispositivo pueden retrasar las notificaciones. Para recibirlas a tiempo, permita que la aplicación funcione en segundo plano sin restricciones de batería.</string>
+    <string name="hs_delivery_message_vendor">Este dispositivo puede detener las aplicaciones en segundo plano, por lo que las notificaciones pueden llegar tarde o no llegar. Para recibirlas a tiempo, active el inicio automático de esta aplicación y quite sus restricciones de batería.</string>
+    <string name="hs_delivery_open_settings">Abrir ajustes</string>
 </resources>

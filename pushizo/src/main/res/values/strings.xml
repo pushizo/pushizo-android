@@ -18,4 +18,9 @@
     <string name="hs_cards_retry">Try again</string>
     <string name="hs_cards_dismiss">Dismiss card</string>
     <string name="hs_cards_pinned">Pinned</string>
+    <!-- Bildirim teslimi açıklama diyaloğu (Pushizo.Delivery.showGuidance; uygulama aynı adla ezebilir). -->
+    <string name="hs_delivery_title">Don\'t miss notifications</string>
+    <string name="hs_delivery_message">Battery settings on this device may delay notifications. To receive them on time, allow this app to run in the background without battery restrictions.</string>
+    <string name="hs_delivery_message_vendor">This device may stop apps running in the background, so notifications can arrive late or not at all. To receive them on time, turn on auto-start for this app and remove its battery restrictions.</string>
+    <string name="hs_delivery_open_settings">Open settings</string>
 </resources>

@@ -15,4 +15,8 @@
     <string name="hs_cards_retry">再試行</string>
     <string name="hs_cards_dismiss">カードを閉じる</string>
     <string name="hs_cards_pinned">固定済み</string>
+    <string name="hs_delivery_title">通知を見逃さないために</string>
+    <string name="hs_delivery_message">この端末のバッテリー設定により、通知が遅れることがあります。通知を時間どおりに受け取るには、アプリがバッテリー制限なしでバックグラウンドで動作できるように許可してください。</string>
+    <string name="hs_delivery_message_vendor">この端末はバックグラウンドのアプリを停止することがあり、通知が遅れたり届かなかったりする場合があります。通知を時間どおりに受け取るには、このアプリの自動起動をオンにし、バッテリー制限を解除してください。</string>
+    <string name="hs_delivery_open_settings">設定を開く</string>
 </resources>

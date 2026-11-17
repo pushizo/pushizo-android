@@ -15,4 +15,8 @@
     <string name="hs_cards_retry">Coba lagi</string>
     <string name="hs_cards_dismiss">Tutup kartu</string>
     <string name="hs_cards_pinned">Disematkan</string>
+    <string name="hs_delivery_title">Jangan lewatkan notifikasi</string>
+    <string name="hs_delivery_message">Pengaturan baterai di perangkat ini dapat menunda notifikasi. Agar notifikasi diterima tepat waktu, izinkan aplikasi berjalan di latar belakang tanpa pembatasan baterai.</string>
+    <string name="hs_delivery_message_vendor">Perangkat ini dapat menghentikan aplikasi di latar belakang sehingga notifikasi bisa terlambat atau tidak sampai sama sekali. Agar notifikasi diterima tepat waktu, aktifkan mulai otomatis untuk aplikasi ini dan hapus pembatasan baterainya.</string>
+    <string name="hs_delivery_open_settings">Buka pengaturan</string>
 </resources>

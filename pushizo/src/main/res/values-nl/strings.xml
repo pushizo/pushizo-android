@@ -15,4 +15,8 @@
     <string name="hs_cards_retry">Opnieuw proberen</string>
     <string name="hs_cards_dismiss">Kaart verbergen</string>
     <string name="hs_cards_pinned">Vastgezet</string>
+    <string name="hs_delivery_title">Mis geen meldingen</string>
+    <string name="hs_delivery_message">De batterij-instellingen van dit apparaat kunnen meldingen vertragen. Sta toe dat de app zonder batterijbeperkingen op de achtergrond werkt om meldingen op tijd te ontvangen.</string>
+    <string name="hs_delivery_message_vendor">Dit apparaat kan apps op de achtergrond stoppen, waardoor meldingen te laat of helemaal niet aankomen. Schakel automatisch starten voor deze app in en verwijder de batterijbeperkingen om meldingen op tijd te ontvangen.</string>
+    <string name="hs_delivery_open_settings">Instellingen openen</string>
 </resources>

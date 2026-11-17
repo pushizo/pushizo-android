@@ -15,4 +15,8 @@
     <string name="hs_cards_retry">إعادة المحاولة</string>
     <string name="hs_cards_dismiss">إخفاء البطاقة</string>
     <string name="hs_cards_pinned">مثبّتة</string>
+    <string name="hs_delivery_title">لا تفوّت الإشعارات</string>
+    <string name="hs_delivery_message">قد تؤخّر إعدادات البطارية في هذا الجهاز وصول الإشعارات. لاستلامها في وقتها، اسمح للتطبيق بالعمل في الخلفية دون قيود على البطارية.</string>
+    <string name="hs_delivery_message_vendor">قد يوقف هذا الجهاز التطبيقات التي تعمل في الخلفية، فتصل الإشعارات متأخرة أو لا تصل إطلاقًا. لاستلامها في وقتها، فعّل التشغيل التلقائي لهذا التطبيق وأزل قيود البطارية عنه.</string>
+    <string name="hs_delivery_open_settings">فتح الإعدادات</string>
 </resources>

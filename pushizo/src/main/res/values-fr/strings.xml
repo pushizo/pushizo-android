@@ -15,4 +15,8 @@
     <string name="hs_cards_retry">Réessayer</string>
     <string name="hs_cards_dismiss">Masquer la carte</string>
     <string name="hs_cards_pinned">Épinglée</string>
+    <string name="hs_delivery_title">Ne manquez aucune notification</string>
+    <string name="hs_delivery_message">Les réglages de batterie de cet appareil peuvent retarder les notifications. Pour les recevoir à temps, autorisez l\'application à fonctionner en arrière-plan sans restriction de batterie.</string>
+    <string name="hs_delivery_message_vendor">Cet appareil peut arrêter les applications en arrière-plan : les notifications peuvent arriver en retard, voire ne pas arriver. Pour les recevoir à temps, activez le démarrage automatique de cette application et levez ses restrictions de batterie.</string>
+    <string name="hs_delivery_open_settings">Ouvrir les réglages</string>
 </resources>

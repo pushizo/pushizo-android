@@ -15,4 +15,8 @@
     <string name="hs_cards_retry">Yenidən cəhd et</string>
     <string name="hs_cards_dismiss">Kartı gizlət</string>
     <string name="hs_cards_pinned">Sabitlənib</string>
+    <string name="hs_delivery_title">Bildirişləri qaçırmayın</string>
+    <string name="hs_delivery_message">Bu cihazdakı batareya ayarları bildirişləri gecikdirə bilər. Bildirişləri vaxtında almaq üçün tətbiqin arxa planda batareya məhdudiyyəti olmadan işləməsinə icazə verin.</string>
+    <string name="hs_delivery_message_vendor">Bu cihaz arxa plandakı tətbiqləri dayandıra bildiyi üçün bildirişlər gec gələ və ya heç gəlməyə bilər. Bildirişləri vaxtında almaq üçün bu tətbiqdə avtomatik başlatmanı açın və batareya məhdudiyyətini götürün.</string>
+    <string name="hs_delivery_open_settings">Ayarları aç</string>
 </resources>

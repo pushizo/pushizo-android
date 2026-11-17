@@ -117,6 +117,26 @@ internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, H
         get() = if (prefs.contains(KEY_SERVER_OPTED_IN)) prefs.getBoolean(KEY_SERVER_OPTED_IN, true) else null
         set(value) = prefs.edit().apply { if (value == null) remove(KEY_SERVER_OPTED_IN) else putBoolean(KEY_SERVER_OPTED_IN, value) }.apply()
 
+    /** Sunucuya en son yazılan teslimat teşhisinin kalıcı bayrak özeti (ADR-0092; null: hiç yazılmadı). */
+    var serverDeliveryStable: String?
+        get() = prefs.getString(KEY_SERVER_DELIVERY_STABLE, null)
+        set(value) = prefs.edit().putString(KEY_SERVER_DELIVERY_STABLE, value).apply()
+
+    /** Sunucuya en son yazılan teslimat teşhisinin sık değişen bayrak özeti. */
+    var serverDeliveryVolatile: String?
+        get() = prefs.getString(KEY_SERVER_DELIVERY_VOLATILE, null)
+        set(value) = prefs.edit().putString(KEY_SERVER_DELIVERY_VOLATILE, value).apply()
+
+    /** Teslimat teşhisinin sunucuya son yazıldığı an (ms). */
+    var serverDeliverySyncedAt: Long
+        get() = prefs.getLong(KEY_SERVER_DELIVERY_SYNCED_AT, 0L)
+        set(value) = prefs.edit().putLong(KEY_SERVER_DELIVERY_SYNCED_AT, value).apply()
+
+    /** Teslimat açıklama diyaloğunun son gösterildiği an (ms; 0: hiç gösterilmedi). */
+    var deliveryPromptedAt: Long
+        get() = prefs.getLong(KEY_DELIVERY_PROMPTED_AT, 0L)
+        set(value) = prefs.edit().putLong(KEY_DELIVERY_PROMPTED_AT, value).apply()
+
     /** Kullanıcı konum paylaşımını açtı mı (`Pushizo.Location.setShared`); kapalıyken konum toplanmaz. */
     override var locationShared: Boolean
         get() = prefs.getBoolean(KEY_LOCATION_SHARED, false)
@@ -285,6 +305,10 @@ internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, H
         const val KEY_CONTACTS_PREFIX = "contacts_"
         const val KEY_SERVER_PUSH_CAPABLE = "server_push_capable"
         const val KEY_SERVER_OPTED_IN = "server_opted_in"
+        const val KEY_SERVER_DELIVERY_STABLE = "server_delivery_stable"
+        const val KEY_SERVER_DELIVERY_VOLATILE = "server_delivery_volatile"
+        const val KEY_SERVER_DELIVERY_SYNCED_AT = "server_delivery_synced_at"
+        const val KEY_DELIVERY_PROMPTED_AT = "delivery_prompted_at"
         const val KEY_IDENTITY_SYNC_PENDING = "identity_sync_pending"
         const val KEY_SESSION_STARTED_AT = "session_started_at"
         const val KEY_SESSION_BACKGROUND_AT = "session_background_at"

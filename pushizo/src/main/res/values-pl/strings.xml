@@ -15,4 +15,8 @@
     <string name="hs_cards_retry">Spróbuj ponownie</string>
     <string name="hs_cards_dismiss">Ukryj kartę</string>
     <string name="hs_cards_pinned">Przypięte</string>
+    <string name="hs_delivery_title">Nie przegap powiadomień</string>
+    <string name="hs_delivery_message">Ustawienia baterii na tym urządzeniu mogą opóźniać powiadomienia. Aby otrzymywać je na czas, należy zezwolić aplikacji na działanie w tle bez ograniczeń baterii.</string>
+    <string name="hs_delivery_message_vendor">To urządzenie może zatrzymywać aplikacje działające w tle, przez co powiadomienia mogą docierać z opóźnieniem lub wcale. Aby otrzymywać je na czas, należy włączyć autostart tej aplikacji i wyłączyć ograniczenia baterii.</string>
+    <string name="hs_delivery_open_settings">Otwórz ustawienia</string>
 </resources>

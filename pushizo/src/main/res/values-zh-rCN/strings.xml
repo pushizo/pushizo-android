@@ -15,4 +15,8 @@
     <string name="hs_cards_retry">重试</string>
     <string name="hs_cards_dismiss">关闭卡片</string>
     <string name="hs_cards_pinned">已置顶</string>
+    <string name="hs_delivery_title">不要错过通知</string>
+    <string name="hs_delivery_message">此设备的电池设置可能会延迟通知。为了及时收到通知，请允许本应用在后台运行且不受电池限制。</string>
+    <string name="hs_delivery_message_vendor">此设备可能会停止后台应用，导致通知延迟甚至无法送达。为了及时收到通知，请为本应用开启自启动并解除电池限制。</string>
+    <string name="hs_delivery_open_settings">打开设置</string>
 </resources>

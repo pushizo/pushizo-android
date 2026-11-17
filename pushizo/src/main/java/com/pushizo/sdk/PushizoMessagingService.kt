@@ -51,6 +51,8 @@ class PushizoMessagingService : FirebaseMessagingService() {
             // FCM collapseKey çoğu mesajda paket adıdır; yalnızca açık tag/collapse kimliği kullanılır.
             collapseKey = message.notification?.tag,
             channelId = message.notification?.channelId,
+            // FCM yüksek önceliği normale düşürdüyse (kısıtlı kova, kota) alındıyla bildirilir (ADR-0092).
+            deprioritized = HsDeliveryRules.deprioritized(message.originalPriority, message.priority),
         )
     }
 
@@ -68,6 +70,7 @@ class PushizoMessagingService : FirebaseMessagingService() {
             imageUrl: String? = null,
             collapseKey: String? = null,
             channelId: String? = null,
+            deprioritized: Boolean = false,
         ) {
             if (!HsNotification.isPushizo(data) && !hasNotification) return // Pushizo dışı veri mesajı
             val n = HsNotification.fromFcm(data, title, body, imageUrl, collapseKey, channelId)
@@ -75,7 +78,7 @@ class PushizoMessagingService : FirebaseMessagingService() {
             // Uygulama kapalıyken (ör. Flutter motoru çalışmıyorken) gelen mesajın `received` bildirimi kaybolmasın diye
             // SDK kayıtlı yapılandırmayla başlatılır.
             val initialized = Pushizo.ensureInitialized(context)
-            n.deliveryId?.let { if (initialized) Pushizo.reportReceived(it) }
+            n.deliveryId?.let { if (initialized) Pushizo.reportReceived(it, deprioritized) }
             // Canlı sohbet bildirimi: okunmamış sayısı yenilenir (bildirim yine gösterilir).
             if (initialized) PushizoChat.onPushReceived(data)
             if (n.silent) return // sessiz mesaj: gösterilmez

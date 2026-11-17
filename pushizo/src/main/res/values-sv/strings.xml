@@ -15,4 +15,8 @@
     <string name="hs_cards_retry">Försök igen</string>
     <string name="hs_cards_dismiss">Stäng kortet</string>
     <string name="hs_cards_pinned">Fastnålat</string>
+    <string name="hs_delivery_title">Missa inga aviseringar</string>
+    <string name="hs_delivery_message">Batteriinställningarna på den här enheten kan fördröja aviseringar. Tillåt att appen körs i bakgrunden utan batteribegränsningar för att få aviseringarna i tid.</string>
+    <string name="hs_delivery_message_vendor">Den här enheten kan stoppa appar i bakgrunden, så aviseringar kan komma sent eller inte alls. Aktivera automatisk start för appen och ta bort batteribegränsningarna för att få aviseringarna i tid.</string>
+    <string name="hs_delivery_open_settings">Öppna inställningar</string>
 </resources>

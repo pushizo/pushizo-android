@@ -15,4 +15,8 @@
     <string name="hs_cards_retry">Tekrar dene</string>
     <string name="hs_cards_dismiss">Kartı kapat</string>
     <string name="hs_cards_pinned">Sabitlendi</string>
+    <string name="hs_delivery_title">Bildirimleri kaçırmayın</string>
+    <string name="hs_delivery_message">Bu cihazdaki pil ayarları bildirimleri geciktirebilir. Bildirimleri zamanında almak için uygulamanın arka planda pil kısıtlaması olmadan çalışmasına izin verin.</string>
+    <string name="hs_delivery_message_vendor">Bu cihaz arka plandaki uygulamaları durdurabildiği için bildirimler geç gelebilir ya da hiç gelmeyebilir. Bildirimleri zamanında almak için bu uygulamada otomatik başlatmayı açın ve pil kısıtlamasını kaldırın.</string>
+    <string name="hs_delivery_open_settings">Ayarları aç</string>
 </resources>

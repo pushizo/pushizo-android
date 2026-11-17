@@ -482,13 +482,15 @@ object Pushizo {
             }
         }
         val sync = HsTokenSync { method, path, body -> api.request(method, path, body) }
-        val device = deviceInfo(ctx)
+        val delivery = deliveryStatus(ctx)
+        val device = deviceInfo(ctx, delivery)
         val previousToken = store.registeredToken
         when (val result = sync.sync(store.subscriptionId, previousToken, token, device, user, channel, store.pushChannel)) {
             HsTokenSyncResult.Unchanged -> return
             HsTokenSyncResult.Updated -> {
                 store.registeredToken = token
                 store.serverPushCapable = device.optBoolean("push_capable")
+                markDeliverySynced(store, delivery)
             }
             is HsTokenSyncResult.Created -> {
                 // Kanal değişti (FCM ↔ HMS): eski push aboneliği kalıcı kuyrukla silinir (kanıt: eski token'ın özeti).
@@ -503,6 +505,7 @@ object Pushizo {
                 store.pendingIdentityHash = null
                 store.identitySyncPending = false
                 store.serverPushCapable = device.optBoolean("push_capable")
+                markDeliverySynced(store, delivery)
                 // Yeni abonelik varsayılan olarak opted_in; kullanıcı daha önce optOut yaptıysa aşağıda PATCH edilir.
                 store.serverOptedIn = true
                 runCatching { reconcileSubscription() }.onFailure { HsLog.w("opt-out durumu yeni aboneliğe yazılamadı", it) }
@@ -519,7 +522,21 @@ object Pushizo {
     private fun appVersion(ctx: Context): String? =
         runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull()
 
-    private fun deviceInfo(ctx: Context): JSONObject = HsEvents.deviceInfo(
+    /** Teslimat teşhisi (ADR-0092): üretici, ROM ve arka plan kısıtı bayrakları; okunamazsa null (kayıt yine yapılır). */
+    private fun deliveryStatus(ctx: Context): HsDeliveryStatus? =
+        runCatching { HsDeliveryProbe.status(ctx, Notifications.permission, options.defaultChannelId) }
+            .onFailure { HsLog.w("teslimat teşhisi okunamadı", it) }
+            .getOrNull()
+
+    /** Teşhis sunucuya yazıldı: sonraki değişiklik tespiti için özetler saklanır. */
+    private fun markDeliverySynced(store: HsStorage, status: HsDeliveryStatus?) {
+        status ?: return
+        store.serverDeliveryStable = status.stableFingerprint
+        store.serverDeliveryVolatile = status.volatileFingerprint
+        store.serverDeliverySyncedAt = System.currentTimeMillis()
+    }
+
+    private fun deviceInfo(ctx: Context, delivery: HsDeliveryStatus? = deliveryStatus(ctx)): JSONObject = HsEvents.deviceInfo(
         model = "${Build.MANUFACTURER} ${Build.MODEL}",
         osVersion = Build.VERSION.RELEASE,
         appVersion = appVersion(ctx),
@@ -528,12 +545,13 @@ object Pushizo {
         timezone = TimeZone.getDefault().id,
         pushCapable = Notifications.permission,
         formFactor = if (ctx.packageManager.hasSystemFeature("android.hardware.type.watch")) "watch" else "phone",
-    )
+    ).also { device -> delivery?.applyTo(device) }
 
     /**
      * Sunucudaki `device.push_capable` ve `opted_in` değerlerini yereldekiyle eşitler: yalnızca son başarıyla yazılan
      * değerden farklıysa `PATCH /subscriptions/{id}` gönderilir. İzin uygulama kapalıyken ayarlardan değiştirilse veya
      * değişiklik onay beklenirken olsa da sunucu (push_capable=false → `pending`) bir sonraki başlatmada güncellenir.
+     * Teslimat teşhisi (ADR-0092) de aynı istekle yazılır: kalıcı bayrak değişince hemen, sık değişen bayraklar günde bir.
      */
     private fun reconcileSubscription() {
         val store = storage ?: return
@@ -543,9 +561,14 @@ object Pushizo {
         if (!networkAllowed()) return
         val pushCapable = Notifications.permission
         val optedIn = store.optedIn
-        if (store.serverPushCapable == pushCapable && store.serverOptedIn == optedIn) return
-        val body = JSONObject().put("device", deviceInfo(ctx)).put("opted_in", optedIn)
+        val delivery = deliveryStatus(ctx)
+        val deliveryDue = delivery != null && HsDeliveryRules.shouldSync(
+            store.serverDeliveryStable, store.serverDeliveryVolatile, store.serverDeliverySyncedAt, delivery, System.currentTimeMillis(),
+        )
+        if (store.serverPushCapable == pushCapable && store.serverOptedIn == optedIn && !deliveryDue) return
+        val body = JSONObject().put("device", deviceInfo(ctx, delivery)).put("opted_in", optedIn)
         api.request("PATCH", "/subscriptions/$subId", HsOwnership.withProof(body, store.registeredToken))
+        markDeliverySynced(store, delivery)
         store.serverPushCapable = pushCapable
         store.serverOptedIn = optedIn
     }
@@ -729,7 +752,7 @@ object Pushizo {
                     if (e.status != 404) throw e // 404: abonelik zaten silinmiş
                 }
             }
-            "received" -> api.request("POST", "/deliveries/${op.getString("delivery_id")}/received", JSONObject())
+            "received" -> api.request("POST", "/deliveries/${op.getString("delivery_id")}/received", HsDeliveryRules.receivedBody(op))
             "dismissed" -> api.request("POST", "/deliveries/${op.getString("delivery_id")}/dismissed", JSONObject())
             "opened" -> {
                 val body = JSONObject()
@@ -756,6 +779,8 @@ object Pushizo {
             if (clickListeners.isNotEmpty()) pendingClick?.let { click -> pendingClick = null; clickListeners.forEach { it(click) } }
             // Kullanıcı izni sistem ayarlarından değiştirmiş olabilir.
             checkPermissionChange()
+            // Pil optimizasyonu / arka plan kısıtı ayarlardan değişmiş olabilir (ADR-0092).
+            syncDeliveryDiagnostics()
             // Oturum başında ve ön plana dönüşte konum (paylaşım açıksa, en sık 5 dakikada bir).
             shareLocationIfDue()
         }
@@ -865,7 +890,25 @@ object Pushizo {
 
     // --- Teslimat geri bildirimi (servis/receiver çağırır) ---
 
-    internal fun reportReceived(deliveryId: String) = enqueue(JSONObject().put("type", "received").put("delivery_id", deliveryId).put("at", System.currentTimeMillis()))
+    /**
+     * Teslim alındısı (confirmed delivery). Uygulama arka plandayken süreç, alındı gönderilemeden üretici pil yöneticisi
+     * tarafından durdurulabilir; bu yüzden kalıcı kuyruğa ek olarak WorkManager flush'ı da planlanır (ADR-0092). Alındı
+     * cihazın mesajı aldığı anı taşır; [deprioritized]: FCM yüksek önceliği normale düşürdü.
+     */
+    internal fun reportReceived(deliveryId: String, deprioritized: Boolean = false) {
+        enqueue(HsDeliveryRules.receivedOp(deliveryId, System.currentTimeMillis(), deprioritized))
+        if (!isInForeground()) runCatching { scheduleFlush() }.onFailure { HsLog.w("alındı için flush planlanamadı", it) }
+    }
+
+    /** Ön plana gelişte teslimat teşhisini (gerekiyorsa) sunucuya yazar; kayıt yoksa bir şey yapmaz. */
+    private fun syncDeliveryDiagnostics() {
+        val store = storage ?: return
+        if (store.subscriptionId == null) return
+        scope.launch {
+            runCatching { synchronized(registrationLock) { reconcileSubscription() } }
+                .onFailure { HsLog.d("teslimat teşhisi eşitlenemedi") }
+        }
+    }
 
     /** Kullanıcı bildirimi kaydırarak/temizleyerek kapattı (deleteIntent). */
     internal fun reportDismissed(deliveryId: String) = enqueue(JSONObject().put("type", "dismissed").put("delivery_id", deliveryId).put("at", System.currentTimeMillis()))
@@ -1332,6 +1375,83 @@ object Pushizo {
      * kısıtlamadıysa `AdvertisingIdClient` ile aldığı kimliği verir. Kimlik yalnızca `ads_personalization` rızası olan
      * kullanıcılarda ve SHA-256 özetiyle reklam kitlesine gönderilir. `null` veya sıfır kimlik sunucudaki kaydı siler.
      */
+    /**
+     * Teslimat güçlendirme (ADR-0092): bazı üreticilerin (Xiaomi, Huawei, Honor, Oppo, Realme, OnePlus, Vivo, Samsung…)
+     * pil ve otomatik başlatma yöneticileri arka plandaki uygulamaları durdurduğu için bildirimler gecikebilir ya da hiç
+     * gelmeyebilir. Bu API cihazın durumunu okur ve kullanıcıyı doğru ayar ekranına götürür. Ek izin gerektirmez.
+     */
+    object Delivery {
+        /**
+         * Cihazın teslim durumu: üretici, ROM, pil optimizasyonu muafiyeti, arka plan kısıtı, bekleme kovası, bildirim
+         * izni/kanalı. Eşzamanlı okunur; SDK başlatılmadıysa null.
+         */
+        @JvmStatic fun status(): HsDeliveryStatus? = appContext?.let(::deliveryStatus)
+
+        /**
+         * Hazır açıklama diyaloğu şimdi gösterilmeli mi: teslim riski var ve diyalog son [minIntervalDays] gün içinde
+         * gösterilmedi.
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun shouldShowGuidance(minIntervalDays: Int = HsDeliveryRules.DEFAULT_PROMPT_INTERVAL_DAYS): Boolean {
+            val store = storage ?: return false
+            val current = status() ?: return false
+            return HsDeliveryRules.shouldPrompt(current, store.deliveryPromptedAt, System.currentTimeMillis(), minIntervalDays)
+        }
+
+        /**
+         * Ayar ekranını açar. [setting] `AUTO` ise duruma en uygun ekran seçilir. Üreticiye özgü ekran bulunamazsa standart
+         * Android ekranına (pil optimizasyonu listesi, uygulama ayrıntıları, ayarlar) düşülür. Ekran açıldıysa true döner;
+         * hiçbir durumda istisna atmaz. [context] Activity ise ekran aynı görevde açılır.
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun openSettings(context: Context, setting: HsDeliverySetting = HsDeliverySetting.AUTO): Boolean = runCatching {
+            val current = deliveryStatus(context) ?: return@runCatching false
+            HsDeliveryProbe.open(context, current, setting)
+        }.onFailure { HsLog.w("teslimat ayar ekranı açılamadı", it) }.getOrDefault(false)
+
+        /**
+         * Hazır açıklama diyaloğu (22 dil; metinler uygulamada `hs_delivery_*` adlarıyla ezilebilir): kullanıcı kabul ederse
+         * [setting] ekranı açılır. [message] verilirse SDK metni yerine o gösterilir. [onResult]: ayar ekranı açıldıysa true,
+         * kullanıcı vazgeçtiyse ya da ekran açılamadıysa false (ana iş parçacığında). Diyaloğun gösterildiği an saklanır
+         * ([shouldShowGuidance]).
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun showGuidance(
+            activity: Activity,
+            setting: HsDeliverySetting = HsDeliverySetting.AUTO,
+            message: String? = null,
+            onResult: ((Boolean) -> Unit)? = null,
+        ) {
+            activity.runOnUiThread {
+                if (activity.isFinishing || activity.isDestroyed) {
+                    onResult?.invoke(false)
+                    return@runOnUiThread
+                }
+                val current = deliveryStatus(activity)
+                val defaultMessage = if (current?.vendor?.aggressive == true) R.string.hs_delivery_message_vendor else R.string.hs_delivery_message
+                storage?.deliveryPromptedAt = System.currentTimeMillis()
+                runCatching {
+                    android.app.AlertDialog.Builder(activity)
+                        .setTitle(R.string.hs_delivery_title)
+                        .setMessage(message?.takeIf { it.isNotBlank() } ?: activity.getString(defaultMessage))
+                        .setPositiveButton(R.string.hs_delivery_open_settings) { _, _ ->
+                            val opened = openSettings(activity, setting)
+                            onResult?.invoke(opened)
+                        }
+                        .setNegativeButton(R.string.hs_location_rationale_not_now) { _, _ -> onResult?.invoke(false) }
+                        .setOnCancelListener { onResult?.invoke(false) }
+                        .show()
+                }.onFailure {
+                    HsLog.w("teslimat açıklama diyaloğu gösterilemedi", it)
+                    onResult?.invoke(false)
+                }
+            }
+        }
+    }
+
     object Ads {
         @JvmStatic fun setAdvertisingId(id: String?) {
             if (storage == null) return

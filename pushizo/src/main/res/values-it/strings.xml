@@ -15,4 +15,8 @@
     <string name="hs_cards_retry">Riprova</string>
     <string name="hs_cards_dismiss">Ignora scheda</string>
     <string name="hs_cards_pinned">Fissata</string>
+    <string name="hs_delivery_title">Non perda nessuna notifica</string>
+    <string name="hs_delivery_message">Le impostazioni della batteria di questo dispositivo possono ritardare le notifiche. Per riceverle in tempo, consenta all\'app di funzionare in background senza restrizioni della batteria.</string>
+    <string name="hs_delivery_message_vendor">Questo dispositivo può arrestare le app in background, quindi le notifiche possono arrivare in ritardo o non arrivare affatto. Per riceverle in tempo, attivi l\'avvio automatico per questa app e rimuova le restrizioni della batteria.</string>
+    <string name="hs_delivery_open_settings">Apri impostazioni</string>
 </resources>

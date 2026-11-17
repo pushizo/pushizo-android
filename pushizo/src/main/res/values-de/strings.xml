@@ -15,4 +15,8 @@
     <string name="hs_cards_retry">Erneut versuchen</string>
     <string name="hs_cards_dismiss">Karte ausblenden</string>
     <string name="hs_cards_pinned">Angeheftet</string>
+    <string name="hs_delivery_title">Keine Benachrichtigungen verpassen</string>
+    <string name="hs_delivery_message">Die Akkueinstellungen dieses Geräts können Benachrichtigungen verzögern. Erlauben Sie der App, ohne Akkubeschränkungen im Hintergrund zu laufen, damit Benachrichtigungen rechtzeitig ankommen.</string>
+    <string name="hs_delivery_message_vendor">Dieses Gerät kann Apps im Hintergrund beenden, sodass Benachrichtigungen verspätet oder gar nicht ankommen. Aktivieren Sie den Autostart für diese App und heben Sie die Akkubeschränkungen auf, damit Benachrichtigungen rechtzeitig ankommen.</string>
+    <string name="hs_delivery_open_settings">Einstellungen öffnen</string>
 </resources>

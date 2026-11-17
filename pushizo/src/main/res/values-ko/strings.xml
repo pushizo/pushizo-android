@@ -15,4 +15,8 @@
     <string name="hs_cards_retry">다시 시도</string>
     <string name="hs_cards_dismiss">카드 닫기</string>
     <string name="hs_cards_pinned">고정됨</string>
+    <string name="hs_delivery_title">알림을 놓치지 마세요</string>
+    <string name="hs_delivery_message">이 기기의 배터리 설정 때문에 알림이 늦게 도착할 수 있습니다. 알림을 제때 받으려면 앱이 배터리 제한 없이 백그라운드에서 실행되도록 허용해 주세요.</string>
+    <string name="hs_delivery_message_vendor">이 기기는 백그라운드 앱을 중지할 수 있어 알림이 늦게 도착하거나 도착하지 않을 수 있습니다. 알림을 제때 받으려면 이 앱의 자동 시작을 켜고 배터리 제한을 해제해 주세요.</string>
+    <string name="hs_delivery_open_settings">설정 열기</string>
 </resources>

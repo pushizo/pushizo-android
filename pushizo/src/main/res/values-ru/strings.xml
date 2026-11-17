@@ -15,4 +15,8 @@
     <string name="hs_cards_retry">Повторить</string>
     <string name="hs_cards_dismiss">Скрыть карточку</string>
     <string name="hs_cards_pinned">Закреплено</string>
+    <string name="hs_delivery_title">Не пропускайте уведомления</string>
+    <string name="hs_delivery_message">Настройки батареи на этом устройстве могут задерживать уведомления. Чтобы получать их вовремя, разрешите приложению работать в фоновом режиме без ограничений батареи.</string>
+    <string name="hs_delivery_message_vendor">Это устройство может останавливать приложения в фоновом режиме, поэтому уведомления могут приходить с опозданием или не приходить вовсе. Чтобы получать их вовремя, включите автозапуск для этого приложения и снимите ограничения батареи.</string>
+    <string name="hs_delivery_open_settings">Открыть настройки</string>
 </resources>
