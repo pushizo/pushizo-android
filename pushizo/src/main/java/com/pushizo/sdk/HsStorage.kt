@@ -235,6 +235,11 @@ internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, H
         get() = prefs.getLong(KEY_CHAT_DELIVERED_SEQ, 0L)
         set(value) = prefs.edit().putLong(KEY_CHAT_DELIVERED_SEQ, value).apply()
 
+    /** `Notifications.setBadgeCount` ile verilen rozet sayısı; sonraki bildirimlere yazılır (0 = yazılmaz). */
+    var badgeCount: Int
+        get() = prefs.getInt(KEY_BADGE_COUNT, 0)
+        set(value) = prefs.edit().putInt(KEY_BADGE_COUNT, value).apply()
+
     /** Son bilinen okunmamış mesaj sayısı. */
     override var chatUnreadCount: Int
         get() = prefs.getInt(KEY_CHAT_UNREAD, 0)
@@ -319,5 +324,6 @@ internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, H
         const val KEY_CHAT_LAST_SEQ = "chat_last_seq"
         const val KEY_CHAT_DELIVERED_SEQ = "chat_delivered_seq"
         const val KEY_CHAT_UNREAD = "chat_unread_count"
+        const val KEY_BADGE_COUNT = "badge_count"
     }
 }

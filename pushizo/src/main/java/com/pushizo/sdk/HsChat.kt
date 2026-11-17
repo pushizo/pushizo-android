@@ -75,6 +75,25 @@ object PushizoChat {
     /** Canlı dinleme açık mı ([startListening]). */
     @JvmStatic val isListening: Boolean get() = streamJob?.isActive == true
 
+    // --- Hazır arayüz ---
+
+    /**
+     * Hazır sohbet ekranını ([HsChatActivity]) açar; ekran zaten açıksa öne getirilir. Kendi ekranınıza gömmek için
+     * [HsChatView] kullanın. `Pushizo.initialize` çağrılmadıysa hiçbir şey yapılmaz.
+     */
+    @JvmStatic
+    fun show(context: Context) {
+        if (Pushizo.storage == null) {
+            HsLog.w("Pushizo.Chat.show: önce Pushizo.initialize çağrılmalı")
+            return
+        }
+        context.startActivity(HsChatActivity.intent(context))
+    }
+
+    /** [show] ile açılan sohbet ekranını kapatır; açık ekran varsa true. */
+    @JvmStatic
+    fun hide(): Boolean = HsChatActivity.finishCurrent()
+
     // --- Dinleyiciler ---
 
     @JvmStatic fun addListener(listener: HsChatListener) { listeners.add(listener) }

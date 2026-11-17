@@ -46,6 +46,13 @@
             android:taskAffinity=""
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
+        <!-- Hazır sohbet ekranı (Pushizo.Chat.show); uygulama `android:theme` değerini manifest birleştirmeyle ezebilir. -->
+        <activity
+            android:name=".HsChatActivity"
+            android:exported="false"
+            android:theme="@style/HsChatTheme"
+            android:windowSoftInputMode="adjustResize" />
+
         <!-- Önceki SDK sürümlerinin gösterdiği bildirimler için (geriye dönük uyumluluk). -->
         <receiver
             android:name=".NotificationOpenedReceiver"

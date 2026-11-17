@@ -89,6 +89,16 @@ Pushizo.login("user_42")
 
 Manifest'e ek bir şey gerekmez: izinler, mesajlaşma servisi ve tıklama alıcısı manifest birleştirmeyle eklenir.
 
+## Hazır arayüzler ve gözlemciler
+
+```kotlin
+Pushizo.Chat.show(context)                            // hazır sohbet ekranı (gömmek için HsChatView)
+Pushizo.User.setProperty("plan", "pro")               // kullanıcı özelliği
+Pushizo.Inbox.addObserver(HsInboxObserver { e -> /* e.type, e.unreadCount */ })
+Pushizo.FeatureFlags.addObserver(HsFeatureFlagObserver { /* bayraklar yenilendi */ })
+Pushizo.Notifications.setBadgeCount(3)                // sonraki bildirimlere yazılır; desteklenmiyorsa false
+```
+
 Huawei ve Fire OS kurulumu, izin gözlemcisi, JWT ile kimlik doğrulama, kanallar, in-app mesajlar, bildirim kutusu, konum, canlı
 sohbet ve sorun giderme: [docs.pushizo.com/docs/sdk/android](https://docs.pushizo.com/docs/sdk/android).
 

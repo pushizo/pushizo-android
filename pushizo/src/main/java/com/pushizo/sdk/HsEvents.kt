@@ -5,6 +5,11 @@ import org.json.JSONObject
 
 /** `POST /events` ve kayıt gövdesi yardımcıları (Android bağımlılığı yok; JVM birim testinde sınanır). */
 internal object HsEvents {
+    private val EVENT_ID = Regex("^[A-Za-z0-9._:-]{8,64}$")
+
+    /** Uygulamanın verdiği olay kimliği geçerliyse kendisi, değilse null (SDK kendi kimliğini üretir; Web SDK ile aynı kural). */
+    fun eventId(given: String?): String? = given?.takeIf { EVENT_ID.matches(it) }
+
     /**
      * Kuyruktaki `event` işlemlerinden olay öğeleri. Her öğeye aboneliğin sahiplik kanıtı eklenir (ADR-0016 Karar 8):
      * `token_hash` (kayıtlı push token'ının ya da e-posta/SMS kanonik adresinin SHA-256 özeti) ve kimlikli kullanıcıda

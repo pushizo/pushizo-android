@@ -116,6 +116,11 @@ object Pushizo {
     private val foregroundListeners = CopyOnWriteArraySet<(HsForegroundEvent) -> Unit>()
     private val subscriptionObservers = CopyOnWriteArraySet<(HsPushSubscriptionState) -> Unit>()
     private val permissionObservers = HsPermissionObservers { HsLog.w("izin gözlemcisi hata verdi", it) }
+    private val featureFlagObservers = HsObserverSet<HsFeatureFlagObserver> { HsLog.w("özellik bayrağı gözlemcisi hata verdi", it) }
+    private val inboxObservers = HsObserverSet<HsInboxObserver> { HsLog.w("bildirim kutusu gözlemcisi hata verdi", it) }
+    private val inboxTracker = HsInboxTracker { event ->
+        if (!inboxObservers.isEmpty) onMain { inboxObservers.dispatch { it.onChange(event) } }
+    }
     @Volatile private var sessionTracker: HsSessionTracker? = null
     /** Arka plana geçişten 30 sn sonra oturumu kapatan iş (ön plana dönülürse iptal edilir). */
     @Volatile private var sessionEndJob: Job? = null
@@ -870,6 +875,7 @@ object Pushizo {
         return try {
             val flags = HsFeatureFlagRules.parse(client.request("POST", "/feature-flags/evaluate", body)) ?: return false
             store.featureFlagsJson = flags.toString()
+            if (!featureFlagObservers.isEmpty) onMain { featureFlagObservers.dispatch { it.onChange() } }
             true
         } catch (e: HsApiException) {
             HsLog.d("özellik bayrakları alınamadı: ${e.status}")
@@ -1037,6 +1043,7 @@ object Pushizo {
             inApp?.reset()
             inApp?.onSubscriptionChanged()
             queue?.flush()
+            inboxTracker.reset()
             // Canlı sohbet ziyaretçisi giriş yapan kullanıcıya bağlanır (sohbet kullanılıyorsa).
             PushizoChat.onIdentityChanged()
         }
@@ -1061,6 +1068,7 @@ object Pushizo {
         val store = storage ?: return
         // Sohbet ziyaretçisi sıfırlanır: cihazı kullanan sonraki kişi önceki sohbeti görmez.
         PushizoChat.onLogout()
+        inboxTracker.reset()
         scope.launch {
             if (!networkAllowed()) {
                 // Onay yokken yalnızca yerel kimlik temizlenir; onay verilince start() sunucudaki aboneliği ayırır.
@@ -1148,6 +1156,12 @@ object Pushizo {
             enqueue(JSONObject().put("type", "alias_remove").put("label", label).put("at", System.currentTimeMillis()))
         }
         @JvmStatic fun setLanguage(code: String) = enqueue(JSONObject().put("type", "properties").put("properties", JSONObject().put("language", code)).put("at", System.currentTimeMillis()))
+
+        /**
+         * Kullanıcı özelliği ayarlar (ör. `setProperty("plan", "pro")`); `null` özelliği siler. Değer metin, sayı,
+         * mantıksal, harita veya liste olabilir. Çevrimdışıyken kuyrukta bekler (Web SDK `User.setProperty` eşdeğeri).
+         */
+        @JvmStatic fun setProperty(key: String, value: Any?) = enqueue(HsUserProperties.op(key, value, System.currentTimeMillis()))
 
         /** E-posta aboneliği ekler (küçük harfe çevrilir); geçersiz adreste `IllegalArgumentException`. Çevrimdışıyken kuyrukta bekler. */
         @JvmStatic fun addEmail(email: String) = contactOp("contact_add", "email", requireNotNull(HsContacts.normalizeEmail(email)) { INVALID_EMAIL })
@@ -1344,6 +1358,32 @@ object Pushizo {
         @JvmStatic fun removeClickListener(listener: (HsClickEvent) -> Unit) { clickListeners.remove(listener) }
         @JvmStatic fun addForegroundLifecycleListener(listener: (HsForegroundEvent) -> Unit) { foregroundListeners.add(listener) }
         @JvmStatic fun removeForegroundLifecycleListener(listener: (HsForegroundEvent) -> Unit) { foregroundListeners.remove(listener) }
+
+        /**
+         * Rozet sayısını ayarlar. Android'de başlatıcı rozeti için standart bir "sayıyı ayarla" API'si yoktur: rozet
+         * tepsideki bildirimlerden üretilir. SDK sayıyı saklar ve bundan sonra gösterdiği bildirimlere
+         * (`NotificationCompat.Builder.setNumber`) yazar; sayı gösteren başlatıcılar (Android 8+) bu değeri kullanır.
+         * Tepside bildirim yokken rozet görünmez; üreticiye özel yayınlar (ShortcutBadger benzeri) kullanılmaz.
+         *
+         * @return Sayı saklandı ve rozet bu cihazda gösterilebiliyorsa true; Android 8 öncesinde, bildirimler kapalıyken
+         * veya varsayılan kanalın rozeti kullanıcı tarafından kapatıldıysa false (sayı yine saklanır).
+         */
+        @JvmStatic fun setBadgeCount(count: Int): Boolean {
+            val store = storage ?: return false
+            val ctx = appContext ?: return false
+            store.badgeCount = HsBadgeRules.normalize(count)
+            val manager = NotificationManagerCompat.from(ctx)
+            // Kanal henüz oluşturulmadıysa (ilk bildirim gelmedi) Android varsayılanı rozet açıktır.
+            val channelShowsBadge = Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
+                manager.getNotificationChannel(options.defaultChannelId)?.canShowBadge() != false
+            return HsBadgeRules.supported(Build.VERSION.SDK_INT, manager.areNotificationsEnabled(), channelShowsBadge)
+        }
+
+        /** Saklanan rozet sayısını sıfırlar (`setBadgeCount(0)`); tepsideki bildirimleri kaldırmak için [clearAll]. */
+        @JvmStatic fun clearBadge() { setBadgeCount(0) }
+
+        /** `setBadgeCount` ile saklanan son sayı (Java: `Pushizo.Notifications.INSTANCE.getBadgeCount()`). */
+        val badgeCount: Int get() = storage?.badgeCount ?: 0
 
         /**
          * Tepsideki tüm Pushizo bildirimlerini (grup özetleri dahil) kaldırır. Android'de başlatıcı rozeti/noktası
@@ -1590,10 +1630,19 @@ object Pushizo {
     object Session {
         @JvmStatic
         @JvmOverloads
-        fun sendEvent(name: String, properties: Map<String, Any?> = emptyMap(), value: Double? = null) {
+        fun sendEvent(name: String, properties: Map<String, Any?> = emptyMap(), value: Double? = null) = send(name, properties, value, null)
+
+        /**
+         * [eventId] ile olay gönderir: reklam pikseli/Conversions API ile aynı kimlik verilirse sunucu olayı tekilleşir
+         * (ADR-0038; Web SDK `sendEvent(…, { eventId })` eşdeğeri). Geçersiz biçimde SDK kendi kimliğini üretir.
+         */
+        @JvmStatic
+        fun sendEvent(name: String, properties: Map<String, Any?>, value: Double?, eventId: String) = send(name, properties, value, eventId)
+
+        private fun send(name: String, properties: Map<String, Any?>, value: Double?, eventId: String?) {
             val op = JSONObject().put("type", "event").put("name", name).put("properties", JSONObject(properties))
                 .put("occurred_at", java.time.Instant.now().toString()).put("at", System.currentTimeMillis())
-                .put("event_id", java.util.UUID.randomUUID().toString())
+                .put("event_id", HsEvents.eventId(eventId) ?: java.util.UUID.randomUUID().toString())
             value?.let { op.put("value", it) }
             enqueue(op)
             inApp?.onEvent(name)
@@ -1714,6 +1763,13 @@ object Pushizo {
         @JvmStatic
         @JvmOverloads
         fun getValue(key: String, default: Any? = null): Any? = HsFeatureFlagRules.value(cache(), key) ?: default
+
+        /**
+         * Değerler sunucudan başarıyla yenilendiğinde (oturum başı ve [refresh]) çağrılır; ana iş parçacığında.
+         * Kotlin: `val observer = HsFeatureFlagObserver { … }`; kaldırmak için aynı örnek [removeObserver]'a verilir.
+         */
+        @JvmStatic fun addObserver(observer: HsFeatureFlagObserver) = featureFlagObservers.add(observer)
+        @JvmStatic fun removeObserver(observer: HsFeatureFlagObserver) = featureFlagObservers.remove(observer)
     }
 
     object Inbox {
@@ -1736,22 +1792,31 @@ object Pushizo {
             require(limit in 1..200) { "limit 1-200 olmalı." }
             val c = ctx()
             val path = "${base(c)}?${query(c)}&limit=$limit" + (cursor?.let { "&cursor=${enc(it)}" } ?: "")
-            return HsInboxParser.parsePage(call("GET", path))
+            return HsInboxParser.parsePage(call("GET", path)).also { inboxTracker.listed(it, firstPage = cursor == null) }
         }
+
+        /** Okunmamış sayısı (tek öğelik istek); yerel öğe önbelleğine dokunmaz. */
+        private fun fetchCount(): Int {
+            val c = ctx()
+            return HsInboxParser.parsePage(call("GET", "${base(c)}?${query(c)}&limit=1")).unreadCount
+        }
+
+        private fun countBlocking(): Int = fetchCount().also(inboxTracker::counted)
 
         private fun markReadBlocking(id: String): HsInboxItem {
             val c = ctx()
-            return HsInboxParser.parseItem(call("POST", "${base(c)}/${enc(id)}/read", body(c)))
+            return HsInboxParser.parseItem(call("POST", "${base(c)}/${enc(id)}/read", body(c))).also { inboxTracker.read(id, ::fetchCount) }
         }
 
         private fun markAllReadBlocking(): Int {
             val c = ctx()
-            return call("POST", "${base(c)}/read-all", body(c)).optInt("unread_count", 0)
+            return call("POST", "${base(c)}/read-all", body(c)).optInt("unread_count", 0).also(inboxTracker::readAll)
         }
 
         private fun archiveBlocking(id: String) {
             val c = ctx()
             call("DELETE", "${base(c)}/${enc(id)}?${query(c)}")
+            inboxTracker.archived(id, ::fetchCount)
         }
 
         /** Öğeler (yeniden eskiye), okunmamış sayısı ve sonraki sayfa imleci (`limit` 1-200). */
@@ -1763,14 +1828,22 @@ object Pushizo {
         /** Öğeyi kutudan kaldırır (arşivler). */
         suspend fun archive(id: String): Unit = withContext(Dispatchers.IO) { archiveBlocking(id) }
         /** Okunmamış öğe sayısı. */
-        suspend fun unreadCount(): Int = withContext(Dispatchers.IO) { listBlocking(1, null).unreadCount }
+        suspend fun unreadCount(): Int = withContext(Dispatchers.IO) { countBlocking() }
+
+        /**
+         * Kutu değişim gözlemcisi (Web SDK `Inbox.addObserver` eşdeğeri): okundu/tümü okundu/arşivleme her zaman,
+         * listeleme ve sayım yalnızca okunmamış sayısı değiştiyse bildirilir. Ana iş parçacığında çağrılır.
+         * Kotlin: `val observer = HsInboxObserver { event -> … }`; kaldırmak için aynı örnek [removeObserver]'a verilir.
+         */
+        @JvmStatic fun addObserver(observer: HsInboxObserver) = inboxObservers.add(observer)
+        @JvmStatic fun removeObserver(observer: HsInboxObserver) = inboxObservers.remove(observer)
 
         @JvmStatic @JvmOverloads
         fun list(limit: Int = 50, cursor: String? = null, callback: HsCallback<HsInboxPage>) = async(callback) { listBlocking(limit, cursor) }
         @JvmStatic fun markRead(id: String, callback: HsCallback<HsInboxItem>) = async(callback) { markReadBlocking(id) }
         @JvmStatic fun markAllRead(callback: HsCallback<Int>) = async(callback) { markAllReadBlocking() }
         @JvmStatic fun archive(id: String, callback: HsCallback<Unit>) = async(callback) { archiveBlocking(id) }
-        @JvmStatic fun unreadCount(callback: HsCallback<Int>) = async(callback) { listBlocking(1, null).unreadCount }
+        @JvmStatic fun unreadCount(callback: HsCallback<Int>) = async(callback) { countBlocking() }
 
         private fun <T> async(callback: HsCallback<T>, block: () -> T) {
             scope.launch { callback.onResult(runCatching(block)) }

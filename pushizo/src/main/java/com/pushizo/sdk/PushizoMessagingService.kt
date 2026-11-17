@@ -112,6 +112,8 @@ class PushizoMessagingService : FirebaseMessagingService() {
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setContentIntent(NotificationOpenActivity.pendingIntent(context, n, null, tag, notificationId, notificationId))
             HsNotificationTray.mark(builder)
+            // Uygulamanın verdiği rozet sayısı (Notifications.setBadgeCount): sayı gösteren başlatıcılar bu alanı kullanır.
+            HsBadgeRules.numberFor(Pushizo.storage?.badgeCount ?: 0)?.let { builder.setNumber(it) }
             n.subtitle?.let { builder.setSubText(it) }
             n.deliveryId?.let { builder.setDeleteIntent(NotificationDismissedReceiver.pendingIntent(context, it, notificationId)) }
             n.groupKey?.let { builder.setGroup(it) }
