@@ -201,7 +201,7 @@ class HsDeliveryTest {
         assertEquals("received", op.getString("type"))
         assertEquals("dlv_1", op.getString("delivery_id"))
         val body = HsDeliveryRules.receivedBody(JSONObject(op.toString()))
-        assertEquals("2025-11-17T12:00:00Z", body.getString("received_at"))
+        assertEquals("2025-11-17T12:00:00.000Z", body.getString("received_at"))
         assertTrue(body.getBoolean("deprioritized"))
 
         val plain = HsDeliveryRules.receivedBody(HsDeliveryRules.receivedOp("dlv_2", 1_763_380_800_000L, deprioritized = false))

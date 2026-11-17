@@ -83,7 +83,7 @@ internal object HsGeofenceRules {
             JSONObject()
                 .put("geofence_id", op.getString("geofence_id"))
                 .put("transition", op.getString("transition"))
-                .put("occurred_at", java.time.Instant.ofEpochMilli(op.getLong("at")).toString()),
+                .put("occurred_at", HsTime.iso(op.getLong("at"))),
         ),
     )
 }

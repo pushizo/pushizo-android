@@ -1641,7 +1641,7 @@ object Pushizo {
 
         private fun send(name: String, properties: Map<String, Any?>, value: Double?, eventId: String?) {
             val op = JSONObject().put("type", "event").put("name", name).put("properties", JSONObject(properties))
-                .put("occurred_at", java.time.Instant.now().toString()).put("at", System.currentTimeMillis())
+                .put("occurred_at", HsTime.isoNow()).put("at", System.currentTimeMillis())
                 .put("event_id", HsEvents.eventId(eventId) ?: java.util.UUID.randomUUID().toString())
             value?.let { op.put("value", it) }
             enqueue(op)

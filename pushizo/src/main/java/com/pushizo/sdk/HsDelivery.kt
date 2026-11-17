@@ -225,7 +225,7 @@ internal object HsDeliveryRules {
      */
     fun receivedBody(op: JSONObject): JSONObject = JSONObject().apply {
         val at = op.optLong("at", 0L)
-        if (at > 0L) put("received_at", java.time.Instant.ofEpochMilli(at).toString())
+        if (at > 0L) put("received_at", HsTime.iso(at))
         if (op.optBoolean("deprioritized", false)) put("deprioritized", true)
     }
 }

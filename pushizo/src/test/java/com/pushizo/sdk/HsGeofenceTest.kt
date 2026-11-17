@@ -69,7 +69,7 @@ class HsGeofenceTest {
         val event = body.getJSONArray("events").getJSONObject(0)
         assertEquals("gfn_1", event.getString("geofence_id"))
         assertEquals("enter", event.getString("transition"))
-        assertEquals("2027-01-15T08:00:00Z", event.getString("occurred_at"))
+        assertEquals("2027-01-15T08:00:00.000Z", event.getString("occurred_at"))
         assertFalse(body.toString().contains("lat"))
         assertFalse(body.toString().contains("lng"))
     }
