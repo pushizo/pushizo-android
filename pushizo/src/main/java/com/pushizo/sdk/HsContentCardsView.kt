@@ -262,7 +262,7 @@ class HsContentCardsView @JvmOverloads constructor(
             }
         }
         if (HsContentCardsLayout.Part.TEXT in parts) {
-            val text = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(14), dp(40), dp(14)) }
+            val text = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPaddingRelative(dp(16), dp(14), dp(40), dp(14)) }
             if (card.pinned) text.addView(label(context.getString(R.string.hs_cards_pinned), 12f, palette.accent, bold = true))
             card.title?.let { text.addView(label(it, 16f, palette.primary, bold = true)) }
             card.body?.let { text.addView(label(it, 14f, palette.secondary).apply { setPadding(0, dp(4), 0, 0) }) }
@@ -279,7 +279,7 @@ class HsContentCardsView @JvmOverloads constructor(
             scaleType = ImageView.ScaleType.FIT_CENTER
             setOnClickListener { dismiss(card) }
         }
-        container.addView(close, LayoutParams(dp(32), dp(32), Gravity.TOP or Gravity.END).apply { setMargins(0, dp(6), dp(6), 0) })
+        container.addView(close, LayoutParams(dp(32), dp(32), Gravity.TOP or Gravity.END).apply { topMargin = dp(6); marginEnd = dp(6) })
         return container
     }
 
