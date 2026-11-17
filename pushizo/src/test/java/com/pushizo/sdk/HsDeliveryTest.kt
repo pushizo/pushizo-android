@@ -132,7 +132,7 @@ class HsDeliveryTest {
 
     @Test
     fun `teshis cihaz govdesine kisisel veri olmadan eklenir`() {
-        val device = HsEvents.deviceInfo("Xiaomi 2201117TG", "14", "1.0", "0.2.1", "tr-TR", "Europe/Istanbul", true)
+        val device = HsEvents.deviceInfo("Xiaomi 2201117TG", "14", "1.0", "0.3.0", "tr-TR", "Europe/Istanbul", true)
         status(manufacturer = "xiaomi", rom = "hyperos", standbyBucket = HsStandbyBucket.FREQUENT, powerSaveMode = true)
             .copy(brand = "redmi", romVersion = "1.0.2.0")
             .applyTo(device)
