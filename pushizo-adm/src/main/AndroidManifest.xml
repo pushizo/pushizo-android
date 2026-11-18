@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:amazon="http://schemas.amazon.com/apk/res/android">
+
+    <!-- Manifest merge ile uygulamaya eklenir; ${applicationId} uygulamanın paket adıyla değiştirilir. -->
+    <!-- Yalnızca bu uygulamanın (aynı imza) ADM mesajlarını alabilmesi için uygulamaya özel izin. -->
+    <permission
+        android:name="${applicationId}.permission.RECEIVE_ADM_MESSAGE"
+        android:protectionLevel="signature" />
+
+    <uses-permission android:name="${applicationId}.permission.RECEIVE_ADM_MESSAGE" />
+    <uses-permission android:name="com.amazon.device.messaging.permission.RECEIVE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <application>
+        <!-- required="false": uygulama Google Play cihazlarına da kurulur; ADM yalnızca Fire OS'ta etkinleşir. -->
+        <amazon:enable-feature
+            android:name="com.amazon.device.messaging"
+            android:required="false" />
+
+        <!-- Android 8+ / ADM 1.1.0+: JobScheduler tabanlı işleyici. -->
+        <service
+            android:name=".PushizoAdmMessageHandler"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <!-- Eski Fire OS / ADM sürümleri: IntentService tabanlı işleyici. -->
+        <service
+            android:name=".PushizoAdmLegacyMessageHandler"
+            android:exported="false" />
+
+        <!-- Yalnızca ADM sistem hizmeti (SEND izni) gönderebilir: kayıt sonucu ve gelen mesajlar. -->
+        <receiver
+            android:name=".PushizoAdmMessageReceiver"
+            android:exported="true"
+            android:permission="com.amazon.device.messaging.permission.SEND">
+            <intent-filter>
+                <action android:name="com.amazon.device.messaging.intent.REGISTRATION" />
+                <action android:name="com.amazon.device.messaging.intent.RECEIVE" />
+                <category android:name="${applicationId}" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

@@ -85,7 +85,7 @@ internal object HsLocationRules {
 
 /**
  * Cihaz konumu: Google Play Services gerektirmez (`android.location.LocationManager`). Önce yeterince yeni son bilinen
- * konum kullanılır, yoksa tek seferlik anlık konum istenir. Arka plan konumu kullanılmaz.
+ * konum kullanılır, yoksa tek seferlik anlık konum istenir. Arka planda konum okunmaz; bölge izleme için [HsGeofenceMonitor].
  */
 internal object HsLocationProvider {
     private val PERMISSIONS = listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)

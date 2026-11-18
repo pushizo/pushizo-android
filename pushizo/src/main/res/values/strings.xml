@@ -1,13 +1,56 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
 <resources>
     <!-- In-app mesaj erişilebilirlik etiketleri (uygulama aynı adla ezebilir). -->
     <string name="hs_in_app_close">Close</string>
     <string name="hs_in_app_message">Message</string>
-    <!-- Carousel kartı ekran okuyucu etiketi: sıra, toplam, kart başlığı. -->
     <string name="hs_in_app_carousel_card">Card %1$d/%2$d: %3$s</string>
     <!-- Konum izni açıklama diyaloğu (Pushizo.Location.requestPermission; uygulama aynı adla ezebilir). -->
     <string name="hs_location_rationale_title">Share your location</string>
     <string name="hs_location_rationale_message">We use your approximate location only while the app is open, to send you relevant nearby notifications. You can turn this off at any time.</string>
     <string name="hs_location_rationale_continue">Continue</string>
     <string name="hs_location_rationale_not_now">Not now</string>
+    <string name="hs_geofence_rationale_title">Allow background location</string>
+    <string name="hs_geofence_rationale_message">To notify you when you arrive at a place, the app needs location access all the time. Your coordinates are not sent; only entering or leaving an area is shared. You can turn this off at any time.</string>
+    <!-- Hazır içerik kartı görünümü (HsContentCardsView; uygulama aynı adla ezebilir). -->
+    <string name="hs_cards_empty">No cards yet</string>
+    <string name="hs_cards_error">Cards could not be loaded.</string>
+    <string name="hs_cards_retry">Try again</string>
+    <string name="hs_cards_dismiss">Dismiss card</string>
+    <string name="hs_cards_pinned">Pinned</string>
+    <!-- Bildirim teslimi açıklama diyaloğu (Pushizo.Delivery.showGuidance; uygulama aynı adla ezebilir). -->
+    <string name="hs_delivery_title">Don\'t miss notifications</string>
+    <string name="hs_delivery_message">Battery settings on this device may delay notifications. To receive them on time, allow this app to run in the background without battery restrictions.</string>
+    <string name="hs_delivery_message_vendor">This device may stop apps running in the background, so notifications can arrive late or not at all. To receive them on time, turn on auto-start for this app and remove its battery restrictions.</string>
+    <string name="hs_delivery_open_settings">Open settings</string>
+    <string name="hs_chat_title">Chat with us</string>
+    <string name="hs_chat_close">Close chat</string>
+    <string name="hs_chat_online">Online</string>
+    <string name="hs_chat_offline">We are offline</string>
+    <string name="hs_chat_placeholder">Type your message…</string>
+    <string name="hs_chat_send">Send</string>
+    <string name="hs_chat_attach">Attach a file</string>
+    <string name="hs_chat_typing">{name} is typing…</string>
+    <string name="hs_chat_read">Read</string>
+    <string name="hs_chat_delivered">Delivered</string>
+    <string name="hs_chat_sent">Sent</string>
+    <string name="hs_chat_sending">Sending…</string>
+    <string name="hs_chat_failed">Not sent</string>
+    <string name="hs_chat_retry">Retry</string>
+    <string name="hs_chat_bot">Assistant</string>
+    <string name="hs_chat_agent">Agent</string>
+    <string name="hs_chat_you">You</string>
+    <string name="hs_chat_offline_default">We\'re offline right now. Leave your email and we\'ll get back to you.</string>
+    <string name="hs_chat_email">Your email</string>
+    <string name="hs_chat_name">Your name (optional)</string>
+    <string name="hs_chat_message">Your message</string>
+    <string name="hs_chat_leave">Leave a message</string>
+    <string name="hs_chat_thanks">Thanks! We received your message and will reply by email.</string>
+    <string name="hs_chat_start">Start chat</string>
+    <string name="hs_chat_email_required">Enter your email to start the chat.</string>
+    <string name="hs_chat_invalid_email">Enter a valid email address.</string>
+    <string name="hs_chat_too_large">Files can be up to {mb} MB.</string>
+    <string name="hs_chat_error">Something went wrong. Please try again.</string>
+    <string name="hs_chat_download">Download</string>
+    <string name="hs_chat_resolved">This conversation was marked as resolved. Send a new message to reopen it.</string>
 </resources>

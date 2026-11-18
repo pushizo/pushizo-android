@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
+<resources>
+    <string name="hs_in_app_close">Đóng</string>
+    <string name="hs_in_app_message">Tin nhắn</string>
+    <string name="hs_in_app_carousel_card">Thẻ %1$d/%2$d: %3$s</string>
+    <string name="hs_location_rationale_title">Chia sẻ vị trí của bạn</string>
+    <string name="hs_location_rationale_message">Chúng tôi chỉ sử dụng vị trí gần đúng của bạn khi ứng dụng đang mở, để gửi cho bạn các thông báo phù hợp ở gần bạn. Bạn có thể tắt tính năng này bất cứ lúc nào.</string>
+    <string name="hs_location_rationale_continue">Tiếp tục</string>
+    <string name="hs_location_rationale_not_now">Để sau</string>
+    <string name="hs_geofence_rationale_title">Cho phép truy cập vị trí trong nền</string>
+    <string name="hs_geofence_rationale_message">Để thông báo cho bạn khi bạn đến một địa điểm, ứng dụng cần quyền truy cập vị trí mọi lúc. Tọa độ của bạn không được gửi đi; chỉ việc bạn vào hoặc rời khỏi một khu vực được chia sẻ. Bạn có thể tắt tính năng này bất cứ lúc nào.</string>
+    <string name="hs_cards_empty">Chưa có thẻ nào</string>
+    <string name="hs_cards_error">Không thể tải thẻ.</string>
+    <string name="hs_cards_retry">Thử lại</string>
+    <string name="hs_cards_dismiss">Bỏ qua thẻ</string>
+    <string name="hs_cards_pinned">Đã ghim</string>
+    <string name="hs_delivery_title">Đừng bỏ lỡ thông báo</string>
+    <string name="hs_delivery_message">Cài đặt pin trên thiết bị này có thể làm chậm thông báo. Để nhận thông báo đúng lúc, hãy cho phép ứng dụng chạy nền mà không bị hạn chế pin.</string>
+    <string name="hs_delivery_message_vendor">Thiết bị này có thể dừng các ứng dụng chạy nền, khiến thông báo đến trễ hoặc không đến. Để nhận thông báo đúng lúc, hãy bật tự khởi chạy cho ứng dụng này và gỡ hạn chế pin.</string>
+    <string name="hs_delivery_open_settings">Mở cài đặt</string>
+    <string name="hs_chat_title">Trò chuyện với chúng tôi</string>
+    <string name="hs_chat_close">Đóng trò chuyện</string>
+    <string name="hs_chat_online">Trực tuyến</string>
+    <string name="hs_chat_offline">Chúng tôi đang ngoại tuyến</string>
+    <string name="hs_chat_placeholder">Nhập tin nhắn của bạn…</string>
+    <string name="hs_chat_send">Gửi</string>
+    <string name="hs_chat_attach">Đính kèm tệp</string>
+    <string name="hs_chat_typing">{name} đang nhập…</string>
+    <string name="hs_chat_read">Đã xem</string>
+    <string name="hs_chat_delivered">Đã nhận</string>
+    <string name="hs_chat_sent">Đã gửi</string>
+    <string name="hs_chat_sending">Đang gửi…</string>
+    <string name="hs_chat_failed">Chưa gửi được</string>
+    <string name="hs_chat_retry">Thử lại</string>
+    <string name="hs_chat_bot">Trợ lý</string>
+    <string name="hs_chat_agent">Nhân viên hỗ trợ</string>
+    <string name="hs_chat_you">Bạn</string>
+    <string name="hs_chat_offline_default">Hiện chúng tôi đang ngoại tuyến. Vui lòng để lại email, chúng tôi sẽ liên hệ lại với bạn.</string>
+    <string name="hs_chat_email">Email của bạn</string>
+    <string name="hs_chat_name">Tên của bạn (không bắt buộc)</string>
+    <string name="hs_chat_message">Tin nhắn của bạn</string>
+    <string name="hs_chat_leave">Để lại tin nhắn</string>
+    <string name="hs_chat_thanks">Cảm ơn bạn! Chúng tôi đã nhận được tin nhắn và sẽ trả lời qua email.</string>
+    <string name="hs_chat_start">Bắt đầu trò chuyện</string>
+    <string name="hs_chat_email_required">Vui lòng nhập email để bắt đầu trò chuyện.</string>
+    <string name="hs_chat_invalid_email">Vui lòng nhập địa chỉ email hợp lệ.</string>
+    <string name="hs_chat_too_large">Tệp có dung lượng tối đa {mb} MB.</string>
+    <string name="hs_chat_error">Đã xảy ra lỗi. Vui lòng thử lại.</string>
+    <string name="hs_chat_download">Tải xuống</string>
+    <string name="hs_chat_resolved">Cuộc trò chuyện này đã được đánh dấu là đã giải quyết. Hãy gửi tin nhắn mới để mở lại.</string>
+</resources>

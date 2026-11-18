@@ -31,6 +31,15 @@ class PushizoMessagingService : FirebaseMessagingService() {
         HsPushBridge.onNewToken(applicationContext, HsPushProviders.CHANNEL_FCM, token)
     }
 
+    /**
+     * Firebase Installation ID kipinde `onNewToken` yerine bu çağrılır. firebase-messaging 25.1.2'de gelir; SDK 24.x ile
+     * derlendiği için `override` yazılamaz, 25.x çalışma zamanında aynı imzayı ezer.
+     */
+    fun onRegistered(installationId: String) {
+        HsLog.d("Firebase Installation ID yenilendi")
+        HsPushBridge.onNewToken(applicationContext, HsPushProviders.CHANNEL_FCM, installationId)
+    }
+
     override fun onMessageReceived(message: RemoteMessage) {
         handle(
             context = applicationContext,
@@ -42,6 +51,8 @@ class PushizoMessagingService : FirebaseMessagingService() {
             // FCM collapseKey çoğu mesajda paket adıdır; yalnızca açık tag/collapse kimliği kullanılır.
             collapseKey = message.notification?.tag,
             channelId = message.notification?.channelId,
+            // FCM yüksek önceliği normale düşürdüyse (kısıtlı kova, kota) alındıyla bildirilir (ADR-0092).
+            deprioritized = HsDeliveryRules.deprioritized(message.originalPriority, message.priority),
         )
     }
 
@@ -59,6 +70,7 @@ class PushizoMessagingService : FirebaseMessagingService() {
             imageUrl: String? = null,
             collapseKey: String? = null,
             channelId: String? = null,
+            deprioritized: Boolean = false,
         ) {
             if (!HsNotification.isPushizo(data) && !hasNotification) return // Pushizo dışı veri mesajı
             val n = HsNotification.fromFcm(data, title, body, imageUrl, collapseKey, channelId)
@@ -66,7 +78,7 @@ class PushizoMessagingService : FirebaseMessagingService() {
             // Uygulama kapalıyken (ör. Flutter motoru çalışmıyorken) gelen mesajın `received` bildirimi kaybolmasın diye
             // SDK kayıtlı yapılandırmayla başlatılır.
             val initialized = Pushizo.ensureInitialized(context)
-            n.deliveryId?.let { if (initialized) Pushizo.reportReceived(it) }
+            n.deliveryId?.let { if (initialized) Pushizo.reportReceived(it, deprioritized) }
             // Canlı sohbet bildirimi: okunmamış sayısı yenilenir (bildirim yine gösterilir).
             if (initialized) PushizoChat.onPushReceived(data)
             if (n.silent) return // sessiz mesaj: gösterilmez
@@ -100,12 +112,19 @@ class PushizoMessagingService : FirebaseMessagingService() {
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setContentIntent(NotificationOpenActivity.pendingIntent(context, n, null, tag, notificationId, notificationId))
             HsNotificationTray.mark(builder)
+            // Uygulamanın verdiği rozet sayısı (Notifications.setBadgeCount): sayı gösteren başlatıcılar bu alanı kullanır.
+            HsBadgeRules.numberFor(Pushizo.storage?.badgeCount ?: 0)?.let { builder.setNumber(it) }
             n.subtitle?.let { builder.setSubText(it) }
             n.deliveryId?.let { builder.setDeleteIntent(NotificationDismissedReceiver.pendingIntent(context, it, notificationId)) }
             n.groupKey?.let { builder.setGroup(it) }
             (n.accentColor ?: defaultColor(context))?.let { builder.setColor(it) }
             // Kilit ekranı görünürlüğü (Android 8+ kanalda da ayarlanabilir; bildirim değeri daha kısıtlayıcıysa geçerlidir).
             n.visibility?.let { builder.setVisibility(it) }
+            n.liveProgress?.let { progress ->
+                builder.setProgress(100, progress, false)
+                builder.setOngoing(n.ongoing)
+                if (n.ongoing) builder.setAutoCancel(false)
+            }
             // Android 8+ seste kanal ayarı geçerlidir; önceki sürümlerde bildirime yazılır.
             if (soundUri != null && Build.VERSION.SDK_INT < Build.VERSION_CODES.O) builder.setSound(soundUri)
 

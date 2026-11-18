@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
 <resources>
     <string name="hs_in_app_close">Kapat</string>
     <string name="hs_in_app_message">Mesaj</string>
@@ -7,4 +8,45 @@
     <string name="hs_location_rationale_message">Yakınınızdaki ilgili bildirimleri gönderebilmek için yaklaşık konumunuzu yalnızca uygulama açıkken kullanırız. Bu ayarı istediğiniz zaman kapatabilirsiniz.</string>
     <string name="hs_location_rationale_continue">Devam</string>
     <string name="hs_location_rationale_not_now">Şimdi değil</string>
+    <string name="hs_geofence_rationale_title">Arka planda konuma izin verin</string>
+    <string name="hs_geofence_rationale_message">Bir yere vardığınızda haber verebilmek için uygulamanın konuma her zaman erişmesi gerekir. Koordinatlarınız gönderilmez, yalnızca bir bölgeye girip çıktığınız paylaşılır. Bunu istediğiniz zaman kapatabilirsiniz.</string>
+    <string name="hs_cards_empty">Henüz kart yok</string>
+    <string name="hs_cards_error">Kartlar yüklenemedi.</string>
+    <string name="hs_cards_retry">Tekrar dene</string>
+    <string name="hs_cards_dismiss">Kartı kapat</string>
+    <string name="hs_cards_pinned">Sabitlendi</string>
+    <string name="hs_delivery_title">Bildirimleri kaçırmayın</string>
+    <string name="hs_delivery_message">Bu cihazdaki pil ayarları bildirimleri geciktirebilir. Bildirimleri zamanında almak için uygulamanın arka planda pil kısıtlaması olmadan çalışmasına izin verin.</string>
+    <string name="hs_delivery_message_vendor">Bu cihaz arka plandaki uygulamaları durdurabildiği için bildirimler geç gelebilir ya da hiç gelmeyebilir. Bildirimleri zamanında almak için bu uygulamada otomatik başlatmayı açın ve pil kısıtlamasını kaldırın.</string>
+    <string name="hs_delivery_open_settings">Ayarları aç</string>
+    <string name="hs_chat_title">Bize yazın</string>
+    <string name="hs_chat_close">Sohbeti kapat</string>
+    <string name="hs_chat_online">Çevrimiçi</string>
+    <string name="hs_chat_offline">Şu an çevrimdışıyız</string>
+    <string name="hs_chat_placeholder">Mesajınızı yazın…</string>
+    <string name="hs_chat_send">Gönder</string>
+    <string name="hs_chat_attach">Dosya ekle</string>
+    <string name="hs_chat_typing">{name} yazıyor…</string>
+    <string name="hs_chat_read">Okundu</string>
+    <string name="hs_chat_delivered">İletildi</string>
+    <string name="hs_chat_sent">Gönderildi</string>
+    <string name="hs_chat_sending">Gönderiliyor…</string>
+    <string name="hs_chat_failed">Gönderilemedi</string>
+    <string name="hs_chat_retry">Yeniden dene</string>
+    <string name="hs_chat_bot">Asistan</string>
+    <string name="hs_chat_agent">Temsilci</string>
+    <string name="hs_chat_you">Siz</string>
+    <string name="hs_chat_offline_default">Şu anda çevrimdışıyız. E-posta adresinizi bırakın, size dönelim.</string>
+    <string name="hs_chat_email">E-posta adresiniz</string>
+    <string name="hs_chat_name">Adınız (isteğe bağlı)</string>
+    <string name="hs_chat_message">Mesajınız</string>
+    <string name="hs_chat_leave">Mesaj bırak</string>
+    <string name="hs_chat_thanks">Teşekkürler! Mesajınızı aldık, e-posta ile döneceğiz.</string>
+    <string name="hs_chat_start">Sohbete başla</string>
+    <string name="hs_chat_email_required">Sohbete başlamak için e-posta adresinizi girin.</string>
+    <string name="hs_chat_invalid_email">Geçerli bir e-posta adresi girin.</string>
+    <string name="hs_chat_too_large">Dosya en fazla {mb} MB olabilir.</string>
+    <string name="hs_chat_error">Bir sorun oluştu. Lütfen tekrar deneyin.</string>
+    <string name="hs_chat_download">İndir</string>
+    <string name="hs_chat_resolved">Konuşma çözüldü olarak işaretlendi. Yeni mesajla yeniden açabilirsiniz.</string>
 </resources>

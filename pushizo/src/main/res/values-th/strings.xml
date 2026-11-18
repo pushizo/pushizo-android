@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
+<resources>
+    <string name="hs_in_app_close">ปิด</string>
+    <string name="hs_in_app_message">ข้อความ</string>
+    <string name="hs_in_app_carousel_card">การ์ด %1$d/%2$d: %3$s</string>
+    <string name="hs_location_rationale_title">แชร์ตำแหน่งของคุณ</string>
+    <string name="hs_location_rationale_message">เราใช้ตำแหน่งโดยประมาณของคุณเฉพาะขณะที่เปิดแอปอยู่ เพื่อส่งการแจ้งเตือนที่เกี่ยวข้องกับบริเวณใกล้เคียงให้คุณ คุณปิดการตั้งค่านี้ได้ทุกเมื่อ</string>
+    <string name="hs_location_rationale_continue">ดำเนินการต่อ</string>
+    <string name="hs_location_rationale_not_now">ไม่ใช่ตอนนี้</string>
+    <string name="hs_geofence_rationale_title">อนุญาตตำแหน่งในเบื้องหลัง</string>
+    <string name="hs_geofence_rationale_message">เพื่อแจ้งเตือนเมื่อคุณไปถึงสถานที่หนึ่ง แอปจำเป็นต้องเข้าถึงตำแหน่งของคุณตลอดเวลา ระบบจะไม่ส่งพิกัดของคุณ แต่จะแชร์เพียงการเข้าหรือออกจากพื้นที่เท่านั้น คุณปิดการตั้งค่านี้ได้ทุกเมื่อ</string>
+    <string name="hs_cards_empty">ยังไม่มีการ์ด</string>
+    <string name="hs_cards_error">โหลดการ์ดไม่สำเร็จ</string>
+    <string name="hs_cards_retry">ลองอีกครั้ง</string>
+    <string name="hs_cards_dismiss">ปิดการ์ด</string>
+    <string name="hs_cards_pinned">ปักหมุดแล้ว</string>
+    <string name="hs_delivery_title">อย่าพลาดการแจ้งเตือน</string>
+    <string name="hs_delivery_message">การตั้งค่าแบตเตอรี่ของอุปกรณ์นี้อาจทำให้การแจ้งเตือนล่าช้า หากต้องการรับการแจ้งเตือนตรงเวลา โปรดอนุญาตให้แอปทำงานในเบื้องหลังโดยไม่มีข้อจำกัดด้านแบตเตอรี่</string>
+    <string name="hs_delivery_message_vendor">อุปกรณ์นี้อาจหยุดแอปที่ทำงานในเบื้องหลัง ทำให้การแจ้งเตือนมาช้าหรือไม่มาเลย หากต้องการรับการแจ้งเตือนตรงเวลา โปรดเปิดการเริ่มทำงานอัตโนมัติของแอปนี้และยกเลิกข้อจำกัดด้านแบตเตอรี่</string>
+    <string name="hs_delivery_open_settings">เปิดการตั้งค่า</string>
+    <string name="hs_chat_title">แชทกับเรา</string>
+    <string name="hs_chat_close">ปิดแชท</string>
+    <string name="hs_chat_online">ออนไลน์</string>
+    <string name="hs_chat_offline">ขณะนี้เราออฟไลน์</string>
+    <string name="hs_chat_placeholder">พิมพ์ข้อความ…</string>
+    <string name="hs_chat_send">ส่ง</string>
+    <string name="hs_chat_attach">แนบไฟล์</string>
+    <string name="hs_chat_typing">{name} กำลังพิมพ์…</string>
+    <string name="hs_chat_read">อ่านแล้ว</string>
+    <string name="hs_chat_delivered">ส่งถึงแล้ว</string>
+    <string name="hs_chat_sent">ส่งแล้ว</string>
+    <string name="hs_chat_sending">กำลังส่ง…</string>
+    <string name="hs_chat_failed">ส่งไม่สำเร็จ</string>
+    <string name="hs_chat_retry">ลองอีกครั้ง</string>
+    <string name="hs_chat_bot">ผู้ช่วย</string>
+    <string name="hs_chat_agent">เจ้าหน้าที่</string>
+    <string name="hs_chat_you">คุณ</string>
+    <string name="hs_chat_offline_default">ขณะนี้เราออฟไลน์ ฝากอีเมลไว้แล้วเราจะติดต่อกลับโดยเร็ว</string>
+    <string name="hs_chat_email">อีเมลของคุณ</string>
+    <string name="hs_chat_name">ชื่อของคุณ (ไม่บังคับ)</string>
+    <string name="hs_chat_message">ข้อความของคุณ</string>
+    <string name="hs_chat_leave">ฝากข้อความ</string>
+    <string name="hs_chat_thanks">ขอบคุณ! เราได้รับข้อความของคุณแล้ว และจะตอบกลับทางอีเมล</string>
+    <string name="hs_chat_start">เริ่มแชท</string>
+    <string name="hs_chat_email_required">กรุณากรอกอีเมลเพื่อเริ่มแชท</string>
+    <string name="hs_chat_invalid_email">กรุณากรอกอีเมลที่ถูกต้อง</string>
+    <string name="hs_chat_too_large">ไฟล์ต้องมีขนาดไม่เกิน {mb} MB</string>
+    <string name="hs_chat_error">เกิดข้อผิดพลาด กรุณาลองอีกครั้ง</string>
+    <string name="hs_chat_download">ดาวน์โหลด</string>
+    <string name="hs_chat_resolved">การสนทนานี้ถูกทำเครื่องหมายว่าแก้ไขแล้ว ส่งข้อความใหม่เพื่อเปิดการสนทนาอีกครั้ง</string>
+</resources>

@@ -4,6 +4,29 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!--
+      Teslimat güçlendirme (ADR-0092): üreticilerin otomatik başlatma / pil yöneticisi ekranları. Android 11+ paket
+      görünürlüğünde bu ekranların varlığı yalnızca burada sayılan paketler için denetlenebilir (ek izin değildir).
+      Liste HsDeliveryTargets.vendorPackages ile aynıdır (birim testi eşitliği doğrular).
+    -->
+    <queries>
+        <package android:name="com.asus.mobilemanager" />
+        <package android:name="com.coloros.oppoguardelf" />
+        <package android:name="com.coloros.safecenter" />
+        <package android:name="com.hihonor.systemmanager" />
+        <package android:name="com.huawei.systemmanager" />
+        <package android:name="com.iqoo.secure" />
+        <package android:name="com.meizu.safe" />
+        <package android:name="com.miui.powerkeeper" />
+        <package android:name="com.miui.securitycenter" />
+        <package android:name="com.oneplus.security" />
+        <package android:name="com.oppo.safe" />
+        <package android:name="com.samsung.android.lool" />
+        <package android:name="com.samsung.android.sm" />
+        <package android:name="com.transsion.phonemanager" />
+        <package android:name="com.vivo.permissionmanager" />
+    </queries>
+
     <application>
         <!-- Manifest merge ile uygulamaya eklenir; müşteri ek servis tanımlamaz. -->
         <service
@@ -23,6 +46,13 @@
             android:taskAffinity=""
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
+        <!-- Hazır sohbet ekranı (Pushizo.Chat.show); uygulama `android:theme` değerini manifest birleştirmeyle ezebilir. -->
+        <activity
+            android:name=".HsChatActivity"
+            android:exported="false"
+            android:theme="@style/HsChatTheme"
+            android:windowSoftInputMode="adjustResize" />
+
         <!-- Önceki SDK sürümlerinin gösterdiği bildirimler için (geriye dönük uyumluluk). -->
         <receiver
             android:name=".NotificationOpenedReceiver"
@@ -31,6 +61,11 @@
         <!-- Bildirim kaydırılıp kapatıldığında dismissed bildirimi. -->
         <receiver
             android:name=".NotificationDismissedReceiver"
+            android:exported="false" />
+
+        <!-- Arka plan bölge izleme (isteğe bağlı): yalnızca uygulama açarsa sistem burayı çağırır. -->
+        <receiver
+            android:name=".HsGeofenceReceiver"
             android:exported="false" />
 
         <!-- Varsayılan bildirim ikonu ve kanal; uygulama meta-data ile ezebilir. -->

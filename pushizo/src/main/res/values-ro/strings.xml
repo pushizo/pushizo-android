@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
+<resources>
+    <string name="hs_in_app_close">Închide</string>
+    <string name="hs_in_app_message">Mesaj</string>
+    <string name="hs_in_app_carousel_card">Cardul %1$d/%2$d: %3$s</string>
+    <string name="hs_location_rationale_title">Partajați locația</string>
+    <string name="hs_location_rationale_message">Folosim locația dumneavoastră aproximativă doar cât timp aplicația este deschisă, pentru a vă trimite notificări relevante din apropiere. Puteți dezactiva oricând această opțiune.</string>
+    <string name="hs_location_rationale_continue">Continuă</string>
+    <string name="hs_location_rationale_not_now">Nu acum</string>
+    <string name="hs_geofence_rationale_title">Permiteți locația în fundal</string>
+    <string name="hs_geofence_rationale_message">Pentru a vă anunța când ajungeți într-un anumit loc, aplicația are nevoie de acces permanent la locație. Coordonatele dumneavoastră nu sunt trimise; se transmite doar intrarea într-o zonă sau ieșirea din ea. Puteți dezactiva oricând această opțiune.</string>
+    <string name="hs_cards_empty">Încă nu există carduri</string>
+    <string name="hs_cards_error">Cardurile nu au putut fi încărcate.</string>
+    <string name="hs_cards_retry">Reîncearcă</string>
+    <string name="hs_cards_dismiss">Închide cardul</string>
+    <string name="hs_cards_pinned">Fixat</string>
+    <string name="hs_delivery_title">Nu ratați notificările</string>
+    <string name="hs_delivery_message">Setările bateriei de pe acest dispozitiv pot întârzia notificările. Pentru a le primi la timp, permiteți aplicației să ruleze în fundal fără restricții de baterie.</string>
+    <string name="hs_delivery_message_vendor">Acest dispozitiv poate opri aplicațiile din fundal, astfel încât notificările pot sosi târziu sau deloc. Pentru a le primi la timp, activați pornirea automată pentru această aplicație și eliminați restricțiile de baterie.</string>
+    <string name="hs_delivery_open_settings">Deschide setările</string>
+    <string name="hs_chat_title">Discutați cu noi</string>
+    <string name="hs_chat_close">Închide chatul</string>
+    <string name="hs_chat_online">Online</string>
+    <string name="hs_chat_offline">Suntem offline</string>
+    <string name="hs_chat_placeholder">Scrieți mesajul…</string>
+    <string name="hs_chat_send">Trimite</string>
+    <string name="hs_chat_attach">Atașează un fișier</string>
+    <string name="hs_chat_typing">{name} scrie…</string>
+    <string name="hs_chat_read">Citit</string>
+    <string name="hs_chat_delivered">Livrat</string>
+    <string name="hs_chat_sent">Trimis</string>
+    <string name="hs_chat_sending">Se trimite…</string>
+    <string name="hs_chat_failed">Netrimis</string>
+    <string name="hs_chat_retry">Reîncearcă</string>
+    <string name="hs_chat_bot">Asistent</string>
+    <string name="hs_chat_agent">Operator</string>
+    <string name="hs_chat_you">Dumneavoastră</string>
+    <string name="hs_chat_offline_default">Momentan suntem offline. Lăsați-ne adresa de e-mail și vă vom răspunde.</string>
+    <string name="hs_chat_email">Adresa dumneavoastră de e-mail</string>
+    <string name="hs_chat_name">Numele dumneavoastră (opțional)</string>
+    <string name="hs_chat_message">Mesajul dumneavoastră</string>
+    <string name="hs_chat_leave">Lăsați un mesaj</string>
+    <string name="hs_chat_thanks">Vă mulțumim! Am primit mesajul și vă vom răspunde prin e-mail.</string>
+    <string name="hs_chat_start">Începe chatul</string>
+    <string name="hs_chat_email_required">Introduceți adresa de e-mail pentru a începe chatul.</string>
+    <string name="hs_chat_invalid_email">Introduceți o adresă de e-mail validă.</string>
+    <string name="hs_chat_too_large">Fișierele pot avea cel mult {mb} MB.</string>
+    <string name="hs_chat_error">A apărut o eroare. Încercați din nou.</string>
+    <string name="hs_chat_download">Descarcă</string>
+    <string name="hs_chat_resolved">Această conversație a fost marcată ca rezolvată. Trimiteți un mesaj nou pentru a o redeschide.</string>
+</resources>

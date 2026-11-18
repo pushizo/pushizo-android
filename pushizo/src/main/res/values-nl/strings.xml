@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
+<resources>
+    <string name="hs_in_app_close">Sluiten</string>
+    <string name="hs_in_app_message">Bericht</string>
+    <string name="hs_in_app_carousel_card">Kaart %1$d/%2$d: %3$s</string>
+    <string name="hs_location_rationale_title">Deel uw locatie</string>
+    <string name="hs_location_rationale_message">We gebruiken uw geschatte locatie alleen terwijl de app geopend is, om u relevante meldingen uit de buurt te sturen. U kunt dit op elk moment uitschakelen.</string>
+    <string name="hs_location_rationale_continue">Doorgaan</string>
+    <string name="hs_location_rationale_not_now">Niet nu</string>
+    <string name="hs_geofence_rationale_title">Locatie op de achtergrond toestaan</string>
+    <string name="hs_geofence_rationale_message">Om u een melding te sturen wanneer u op een plek aankomt, heeft de app altijd toegang tot uw locatie nodig. Uw coördinaten worden niet verzonden; alleen het binnenkomen of verlaten van een gebied wordt gedeeld. U kunt dit op elk moment uitschakelen.</string>
+    <string name="hs_cards_empty">Nog geen kaarten</string>
+    <string name="hs_cards_error">De kaarten konden niet worden geladen.</string>
+    <string name="hs_cards_retry">Opnieuw proberen</string>
+    <string name="hs_cards_dismiss">Kaart verbergen</string>
+    <string name="hs_cards_pinned">Vastgezet</string>
+    <string name="hs_delivery_title">Mis geen meldingen</string>
+    <string name="hs_delivery_message">De batterij-instellingen van dit apparaat kunnen meldingen vertragen. Sta toe dat de app zonder batterijbeperkingen op de achtergrond werkt om meldingen op tijd te ontvangen.</string>
+    <string name="hs_delivery_message_vendor">Dit apparaat kan apps op de achtergrond stoppen, waardoor meldingen te laat of helemaal niet aankomen. Schakel automatisch starten voor deze app in en verwijder de batterijbeperkingen om meldingen op tijd te ontvangen.</string>
+    <string name="hs_delivery_open_settings">Instellingen openen</string>
+    <string name="hs_chat_title">Chat met ons</string>
+    <string name="hs_chat_close">Chat sluiten</string>
+    <string name="hs_chat_online">Online</string>
+    <string name="hs_chat_offline">We zijn offline</string>
+    <string name="hs_chat_placeholder">Typ uw bericht…</string>
+    <string name="hs_chat_send">Verzenden</string>
+    <string name="hs_chat_attach">Bestand bijvoegen</string>
+    <string name="hs_chat_typing">{name} typt…</string>
+    <string name="hs_chat_read">Gelezen</string>
+    <string name="hs_chat_delivered">Afgeleverd</string>
+    <string name="hs_chat_sent">Verzonden</string>
+    <string name="hs_chat_sending">Verzenden…</string>
+    <string name="hs_chat_failed">Niet verzonden</string>
+    <string name="hs_chat_retry">Opnieuw proberen</string>
+    <string name="hs_chat_bot">Assistent</string>
+    <string name="hs_chat_agent">Medewerker</string>
+    <string name="hs_chat_you">U</string>
+    <string name="hs_chat_offline_default">We zijn momenteel offline. Laat uw e-mailadres achter, dan nemen we contact met u op.</string>
+    <string name="hs_chat_email">Uw e-mailadres</string>
+    <string name="hs_chat_name">Uw naam (optioneel)</string>
+    <string name="hs_chat_message">Uw bericht</string>
+    <string name="hs_chat_leave">Bericht achterlaten</string>
+    <string name="hs_chat_thanks">Bedankt! We hebben uw bericht ontvangen en antwoorden per e-mail.</string>
+    <string name="hs_chat_start">Chat starten</string>
+    <string name="hs_chat_email_required">Voer uw e-mailadres in om de chat te starten.</string>
+    <string name="hs_chat_invalid_email">Voer een geldig e-mailadres in.</string>
+    <string name="hs_chat_too_large">Bestanden mogen maximaal {mb} MB groot zijn.</string>
+    <string name="hs_chat_error">Er is iets misgegaan. Probeer het opnieuw.</string>
+    <string name="hs_chat_download">Downloaden</string>
+    <string name="hs_chat_resolved">Dit gesprek is als opgelost gemarkeerd. Stuur een nieuw bericht om het te heropenen.</string>
+</resources>

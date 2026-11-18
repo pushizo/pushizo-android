@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
+<resources>
+    <string name="hs_in_app_close">Закрити</string>
+    <string name="hs_in_app_message">Повідомлення</string>
+    <string name="hs_in_app_carousel_card">Картка %1$d/%2$d: %3$s</string>
+    <string name="hs_location_rationale_title">Поділіться місцезнаходженням</string>
+    <string name="hs_location_rationale_message">Ми використовуємо Ваше приблизне місцезнаходження лише поки застосунок відкритий, щоб надсилати Вам актуальні сповіщення про місця поблизу. Ви можете вимкнути це будь-коли.</string>
+    <string name="hs_location_rationale_continue">Продовжити</string>
+    <string name="hs_location_rationale_not_now">Не зараз</string>
+    <string name="hs_geofence_rationale_title">Дозвольте доступ до місцезнаходження у фоні</string>
+    <string name="hs_geofence_rationale_message">Щоб сповіщати Вас, коли Ви прибуваєте в певне місце, застосунку потрібен постійний доступ до місцезнаходження. Ваші координати не передаються — повідомляється лише про вхід у зону чи вихід із неї. Ви можете вимкнути це будь-коли.</string>
+    <string name="hs_cards_empty">Карток поки немає</string>
+    <string name="hs_cards_error">Не вдалося завантажити картки.</string>
+    <string name="hs_cards_retry">Спробувати ще</string>
+    <string name="hs_cards_dismiss">Приховати картку</string>
+    <string name="hs_cards_pinned">Закріплено</string>
+    <string name="hs_delivery_title">Не пропускайте сповіщення</string>
+    <string name="hs_delivery_message">Налаштування акумулятора на цьому пристрої можуть затримувати сповіщення. Щоб отримувати їх вчасно, дозвольте застосунку працювати у фоновому режимі без обмежень акумулятора.</string>
+    <string name="hs_delivery_message_vendor">Цей пристрій може зупиняти застосунки у фоновому режимі, тому сповіщення можуть надходити із запізненням або не надходити зовсім. Щоб отримувати їх вчасно, увімкніть автозапуск для цього застосунку та зніміть обмеження акумулятора.</string>
+    <string name="hs_delivery_open_settings">Відкрити налаштування</string>
+    <string name="hs_chat_title">Напишіть нам</string>
+    <string name="hs_chat_close">Закрити чат</string>
+    <string name="hs_chat_online">У мережі</string>
+    <string name="hs_chat_offline">Ми не в мережі</string>
+    <string name="hs_chat_placeholder">Введіть повідомлення…</string>
+    <string name="hs_chat_send">Надіслати</string>
+    <string name="hs_chat_attach">Прикріпити файл</string>
+    <string name="hs_chat_typing">{name} друкує…</string>
+    <string name="hs_chat_read">Прочитано</string>
+    <string name="hs_chat_delivered">Доставлено</string>
+    <string name="hs_chat_sent">Надіслано</string>
+    <string name="hs_chat_sending">Надсилання…</string>
+    <string name="hs_chat_failed">Не надіслано</string>
+    <string name="hs_chat_retry">Повторити</string>
+    <string name="hs_chat_bot">Асистент</string>
+    <string name="hs_chat_agent">Оператор</string>
+    <string name="hs_chat_you">Ви</string>
+    <string name="hs_chat_offline_default">Зараз ми не в мережі. Залиште свою електронну адресу, і ми Вам відповімо.</string>
+    <string name="hs_chat_email">Ваша електронна адреса</string>
+    <string name="hs_chat_name">Ваше ім’я (необов’язково)</string>
+    <string name="hs_chat_message">Ваше повідомлення</string>
+    <string name="hs_chat_leave">Залишити повідомлення</string>
+    <string name="hs_chat_thanks">Дякуємо! Ми отримали Ваше повідомлення й відповімо електронною поштою.</string>
+    <string name="hs_chat_start">Почати чат</string>
+    <string name="hs_chat_email_required">Введіть електронну адресу, щоб почати чат.</string>
+    <string name="hs_chat_invalid_email">Введіть дійсну адресу електронної пошти.</string>
+    <string name="hs_chat_too_large">Розмір файлу — не більше {mb} MB.</string>
+    <string name="hs_chat_error">Щось пішло не так. Спробуйте ще раз.</string>
+    <string name="hs_chat_download">Завантажити</string>
+    <string name="hs_chat_resolved">Цю розмову позначено як вирішену. Надішліть нове повідомлення, щоб відновити її.</string>
+</resources>

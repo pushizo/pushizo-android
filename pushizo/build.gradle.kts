@@ -14,7 +14,7 @@ android {
     defaultConfig {
         minSdk = 23
         consumerProguardFiles("consumer-rules.pro")
-        buildConfigField("String", "SDK_VERSION", "\"0.1.0\"")
+        buildConfigField("String", "SDK_VERSION", "\"0.3.0\"")
     }
 
     buildFeatures {
@@ -45,6 +45,8 @@ android {
 dependencies {
     // Token alma/yenileme ve mesaj alma (müşteri google-services.json ekler).
     implementation("com.google.firebase:firebase-messaging:24.1.0")
+    // Arka plan bölge izleme (ADR-0065 §5): isteğe bağlı, uygulama kendi bağımlılığına ekler.
+    compileOnly("com.google.android.gms:play-services-location:21.3.0")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.work:work-runtime-ktx:2.10.0")
     implementation("androidx.lifecycle:lifecycle-process:2.8.7")
@@ -60,7 +62,7 @@ publishing {
         register<MavenPublication>("release") {
             groupId = "com.pushizo"
             artifactId = "pushizo-android"
-            version = "0.1.0"
+            version = "0.3.0"
             afterEvaluate { from(components["release"]) }
             pom {
                 name.set("Pushizo Android SDK")
@@ -92,7 +94,7 @@ publishing {
         // `gpr.user`/`gpr.key`.
         maven {
             name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/pushizo/pushizo")
+            url = uri("https://maven.pkg.github.com/exec0de/pushizo")
             credentials {
                 username = (project.findProperty("gpr.user") as String?) ?: System.getenv("GITHUB_ACTOR")
                 password = (project.findProperty("gpr.key") as String?) ?: System.getenv("GITHUB_TOKEN")

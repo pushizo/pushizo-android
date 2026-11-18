@@ -8,7 +8,7 @@ import org.junit.Test
 /** In-app ve inbox isteklerinde abonelik sahiplik kanıtı (ADR-0016 genişlemesi: `token_hash`). */
 class HsInAppInboxProofTest {
     private val pushHash = HsOwnership.tokenHash("fcm_token")
-    private val mailHash = HsOwnership.tokenHash("ayse@example.com")
+    private val mailHash = HsOwnership.tokenHash("ayse@pushizo.com")
 
     @Test
     fun `in-app listesi kanit varsa token_hash ile istenir`() {

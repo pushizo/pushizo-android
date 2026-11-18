@@ -9,7 +9,7 @@ import org.json.JSONObject
  * Cihazda kalıcı SDK durumu (SharedPreferences, app başına). İkincil kurucu birim testlerinde bellek içi
  * [SharedPreferences] ile kullanılır.
  */
-internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, HsSessionTracker.State, HsLocationRules.State, HsChatState {
+internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, HsSessionTracker.State, HsLocationRules.State, HsGeofenceRules.State, HsChatState {
     constructor(context: Context, appId: String) :
         this(context.applicationContext.getSharedPreferences("pushizo_$appId", Context.MODE_PRIVATE))
 
@@ -117,6 +117,26 @@ internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, H
         get() = if (prefs.contains(KEY_SERVER_OPTED_IN)) prefs.getBoolean(KEY_SERVER_OPTED_IN, true) else null
         set(value) = prefs.edit().apply { if (value == null) remove(KEY_SERVER_OPTED_IN) else putBoolean(KEY_SERVER_OPTED_IN, value) }.apply()
 
+    /** Sunucuya en son yazılan teslimat teşhisinin kalıcı bayrak özeti (ADR-0092; null: hiç yazılmadı). */
+    var serverDeliveryStable: String?
+        get() = prefs.getString(KEY_SERVER_DELIVERY_STABLE, null)
+        set(value) = prefs.edit().putString(KEY_SERVER_DELIVERY_STABLE, value).apply()
+
+    /** Sunucuya en son yazılan teslimat teşhisinin sık değişen bayrak özeti. */
+    var serverDeliveryVolatile: String?
+        get() = prefs.getString(KEY_SERVER_DELIVERY_VOLATILE, null)
+        set(value) = prefs.edit().putString(KEY_SERVER_DELIVERY_VOLATILE, value).apply()
+
+    /** Teslimat teşhisinin sunucuya son yazıldığı an (ms). */
+    var serverDeliverySyncedAt: Long
+        get() = prefs.getLong(KEY_SERVER_DELIVERY_SYNCED_AT, 0L)
+        set(value) = prefs.edit().putLong(KEY_SERVER_DELIVERY_SYNCED_AT, value).apply()
+
+    /** Teslimat açıklama diyaloğunun son gösterildiği an (ms; 0: hiç gösterilmedi). */
+    var deliveryPromptedAt: Long
+        get() = prefs.getLong(KEY_DELIVERY_PROMPTED_AT, 0L)
+        set(value) = prefs.edit().putLong(KEY_DELIVERY_PROMPTED_AT, value).apply()
+
     /** Kullanıcı konum paylaşımını açtı mı (`Pushizo.Location.setShared`); kapalıyken konum toplanmaz. */
     override var locationShared: Boolean
         get() = prefs.getBoolean(KEY_LOCATION_SHARED, false)
@@ -126,6 +146,37 @@ internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, H
     override var locationLastSharedAt: Long
         get() = prefs.getLong(KEY_LOCATION_LAST_SHARED_AT, 0L)
         set(value) = prefs.edit().putLong(KEY_LOCATION_LAST_SHARED_AT, value).apply()
+
+    /** Son alınan özellik bayrakları (ADR-0066). */
+    var featureFlagsJson: String?
+        get() = prefs.getString(KEY_FEATURE_FLAGS, null)
+        set(value) = prefs.edit().putString(KEY_FEATURE_FLAGS, value).apply()
+
+    /** Abonelik yokken kovanın hesaplandığı kalıcı rastgele kimlik. */
+    var featureFlagSubject: String?
+        get() = prefs.getString(KEY_FEATURE_FLAG_SUBJECT, null)
+        set(value) = prefs.edit().putString(KEY_FEATURE_FLAG_SUBJECT, value).apply()
+
+    /** Arka plan bölge izleme açık mı (ADR-0065; varsayılan kapalı). */
+    override var geofencingEnabled: Boolean
+        get() = prefs.getBoolean(KEY_GEOFENCING_ENABLED, false)
+        set(value) = prefs.edit().putBoolean(KEY_GEOFENCING_ENABLED, value).apply()
+
+    override var geofenceLastSyncAt: Long
+        get() = prefs.getLong(KEY_GEOFENCE_LAST_SYNC_AT, 0L)
+        set(value) = prefs.edit().putLong(KEY_GEOFENCE_LAST_SYNC_AT, value).apply()
+
+    override var geofenceLastSyncLat: Double
+        get() = Double.fromBits(prefs.getLong(KEY_GEOFENCE_LAST_SYNC_LAT, 0L))
+        set(value) = prefs.edit().putLong(KEY_GEOFENCE_LAST_SYNC_LAT, value.toRawBits()).apply()
+
+    override var geofenceLastSyncLng: Double
+        get() = Double.fromBits(prefs.getLong(KEY_GEOFENCE_LAST_SYNC_LNG, 0L))
+        set(value) = prefs.edit().putLong(KEY_GEOFENCE_LAST_SYNC_LNG, value.toRawBits()).apply()
+
+    override var geofenceLastSyncUptime: Long
+        get() = prefs.getLong(KEY_GEOFENCE_LAST_SYNC_UPTIME, 0L)
+        set(value) = prefs.edit().putLong(KEY_GEOFENCE_LAST_SYNC_UPTIME, value).apply()
 
     /** Onay yokken yapılan login/logout sunucuya henüz yansıtılmadı; onay verilince eşitlenir. */
     var identitySyncPending: Boolean
@@ -184,6 +235,11 @@ internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, H
         get() = prefs.getLong(KEY_CHAT_DELIVERED_SEQ, 0L)
         set(value) = prefs.edit().putLong(KEY_CHAT_DELIVERED_SEQ, value).apply()
 
+    /** `Notifications.setBadgeCount` ile verilen rozet sayısı; sonraki bildirimlere yazılır (0 = yazılmaz). */
+    var badgeCount: Int
+        get() = prefs.getInt(KEY_BADGE_COUNT, 0)
+        set(value) = prefs.edit().putInt(KEY_BADGE_COUNT, value).apply()
+
     /** Son bilinen okunmamış mesaj sayısı. */
     override var chatUnreadCount: Int
         get() = prefs.getInt(KEY_CHAT_UNREAD, 0)
@@ -235,6 +291,13 @@ internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, H
         const val KEY_PUSH_CHANNEL = "push_channel"
         const val KEY_LOCATION_SHARED = "location_shared"
         const val KEY_LOCATION_LAST_SHARED_AT = "location_last_shared_at"
+        const val KEY_FEATURE_FLAGS = "feature_flags"
+        const val KEY_FEATURE_FLAG_SUBJECT = "feature_flag_subject"
+        const val KEY_GEOFENCING_ENABLED = "geofencing_enabled"
+        const val KEY_GEOFENCE_LAST_SYNC_AT = "geofence_last_sync_at"
+        const val KEY_GEOFENCE_LAST_SYNC_LAT = "geofence_last_sync_lat"
+        const val KEY_GEOFENCE_LAST_SYNC_LNG = "geofence_last_sync_lng"
+        const val KEY_GEOFENCE_LAST_SYNC_UPTIME = "geofence_last_sync_uptime"
         const val KEY_REGISTERED_TOKEN = "registered_token"
         const val KEY_OPTED_IN = "opted_in"
         const val KEY_CONSENT = "consent"
@@ -247,6 +310,10 @@ internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, H
         const val KEY_CONTACTS_PREFIX = "contacts_"
         const val KEY_SERVER_PUSH_CAPABLE = "server_push_capable"
         const val KEY_SERVER_OPTED_IN = "server_opted_in"
+        const val KEY_SERVER_DELIVERY_STABLE = "server_delivery_stable"
+        const val KEY_SERVER_DELIVERY_VOLATILE = "server_delivery_volatile"
+        const val KEY_SERVER_DELIVERY_SYNCED_AT = "server_delivery_synced_at"
+        const val KEY_DELIVERY_PROMPTED_AT = "delivery_prompted_at"
         const val KEY_IDENTITY_SYNC_PENDING = "identity_sync_pending"
         const val KEY_SESSION_STARTED_AT = "session_started_at"
         const val KEY_SESSION_BACKGROUND_AT = "session_background_at"
@@ -257,5 +324,6 @@ internal class HsStorage(private val prefs: SharedPreferences) : HsQueueStore, H
         const val KEY_CHAT_LAST_SEQ = "chat_last_seq"
         const val KEY_CHAT_DELIVERED_SEQ = "chat_delivered_seq"
         const val KEY_CHAT_UNREAD = "chat_unread_count"
+        const val KEY_BADGE_COUNT = "badge_count"
     }
 }

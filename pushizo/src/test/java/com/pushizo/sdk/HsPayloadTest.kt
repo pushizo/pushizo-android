@@ -112,14 +112,14 @@ class HsPayloadTest {
             "hs_delivery_id" to "dlv_5",
             "hs_title" to "Başlık",
             "hs_small_icon" to "ic_stat_promo",
-            "hs_large_icon" to "https://cdn.example.com/avatar.png",
+            "hs_large_icon" to "https://cdn.pushizo.com/avatar.png",
             "hs_accent_color" to "FF9900FF",
             "hs_visibility" to "-1",
             "hs_group" to "orders",
         )
         val n = HsNotification.fromFcm(data, null, null, null, null, null)
         assertEquals("ic_stat_promo", n.smallIcon)
-        assertEquals("https://cdn.example.com/avatar.png", n.largeIcon)
+        assertEquals("https://cdn.pushizo.com/avatar.png", n.largeIcon)
         assertEquals(0xFF9900FF.toInt(), n.accentColor)
         assertEquals(-1, n.visibility)
         assertEquals("orders", n.groupKey)

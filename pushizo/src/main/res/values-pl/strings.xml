@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
+<resources>
+    <string name="hs_in_app_close">Zamknij</string>
+    <string name="hs_in_app_message">Wiadomość</string>
+    <string name="hs_in_app_carousel_card">Karta %1$d/%2$d: %3$s</string>
+    <string name="hs_location_rationale_title">Udostępnianie lokalizacji</string>
+    <string name="hs_location_rationale_message">Przybliżona lokalizacja jest używana wyłącznie wtedy, gdy aplikacja jest otwarta, aby wysyłać trafne powiadomienia o pobliskich miejscach. Można to wyłączyć w dowolnym momencie.</string>
+    <string name="hs_location_rationale_continue">Dalej</string>
+    <string name="hs_location_rationale_not_now">Nie teraz</string>
+    <string name="hs_geofence_rationale_title">Zezwól na lokalizację w tle</string>
+    <string name="hs_geofence_rationale_message">Aby powiadomienie mogło pojawić się po dotarciu na miejsce, aplikacja potrzebuje stałego dostępu do lokalizacji. Współrzędne nie są wysyłane — udostępniana jest tylko informacja o wejściu do obszaru lub jego opuszczeniu. Można to wyłączyć w dowolnym momencie.</string>
+    <string name="hs_cards_empty">Brak kart</string>
+    <string name="hs_cards_error">Nie udało się wczytać kart.</string>
+    <string name="hs_cards_retry">Spróbuj ponownie</string>
+    <string name="hs_cards_dismiss">Ukryj kartę</string>
+    <string name="hs_cards_pinned">Przypięte</string>
+    <string name="hs_delivery_title">Nie przegap powiadomień</string>
+    <string name="hs_delivery_message">Ustawienia baterii na tym urządzeniu mogą opóźniać powiadomienia. Aby otrzymywać je na czas, należy zezwolić aplikacji na działanie w tle bez ograniczeń baterii.</string>
+    <string name="hs_delivery_message_vendor">To urządzenie może zatrzymywać aplikacje działające w tle, przez co powiadomienia mogą docierać z opóźnieniem lub wcale. Aby otrzymywać je na czas, należy włączyć autostart tej aplikacji i wyłączyć ograniczenia baterii.</string>
+    <string name="hs_delivery_open_settings">Otwórz ustawienia</string>
+    <string name="hs_chat_title">Czat z nami</string>
+    <string name="hs_chat_close">Zamknij czat</string>
+    <string name="hs_chat_online">Online</string>
+    <string name="hs_chat_offline">Jesteśmy offline</string>
+    <string name="hs_chat_placeholder">Wpisz wiadomość…</string>
+    <string name="hs_chat_send">Wyślij</string>
+    <string name="hs_chat_attach">Załącz plik</string>
+    <string name="hs_chat_typing">{name} pisze…</string>
+    <string name="hs_chat_read">Przeczytano</string>
+    <string name="hs_chat_delivered">Dostarczono</string>
+    <string name="hs_chat_sent">Wysłano</string>
+    <string name="hs_chat_sending">Wysyłanie…</string>
+    <string name="hs_chat_failed">Nie wysłano</string>
+    <string name="hs_chat_retry">Ponów</string>
+    <string name="hs_chat_bot">Asystent</string>
+    <string name="hs_chat_agent">Konsultant</string>
+    <string name="hs_chat_you">Ty</string>
+    <string name="hs_chat_offline_default">Jesteśmy teraz offline. Prosimy zostawić adres e-mail — odpowiemy najszybciej, jak to możliwe.</string>
+    <string name="hs_chat_email">Adres e-mail</string>
+    <string name="hs_chat_name">Imię (opcjonalnie)</string>
+    <string name="hs_chat_message">Wiadomość</string>
+    <string name="hs_chat_leave">Zostaw wiadomość</string>
+    <string name="hs_chat_thanks">Dziękujemy! Wiadomość została odebrana — odpowiemy e-mailem.</string>
+    <string name="hs_chat_start">Rozpocznij czat</string>
+    <string name="hs_chat_email_required">Aby rozpocząć czat, należy podać adres e-mail.</string>
+    <string name="hs_chat_invalid_email">Należy podać prawidłowy adres e-mail.</string>
+    <string name="hs_chat_too_large">Maksymalny rozmiar pliku to {mb} MB.</string>
+    <string name="hs_chat_error">Coś poszło nie tak. Prosimy spróbować ponownie.</string>
+    <string name="hs_chat_download">Pobierz</string>
+    <string name="hs_chat_resolved">Ta rozmowa została oznaczona jako rozwiązana. Wysłanie nowej wiadomości otworzy ją ponownie.</string>
+</resources>

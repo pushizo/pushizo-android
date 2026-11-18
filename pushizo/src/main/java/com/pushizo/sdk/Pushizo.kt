@@ -53,6 +53,22 @@ class HsForegroundEvent(val notification: HsNotification) {
     internal fun markDisplayed(): Boolean = displayed.compareAndSet(false, true)
 }
 
+/**
+ * Girişle birlikte ayarlanan profil: `Pushizo.login("user_42", HsUserProfile(email = "ali@ornek.com"))`.
+ * Geçersiz e-posta veya telefon girişten önce reddedilir; yarım kalmış bir kimlik değişimi olmaz.
+ */
+data class HsUserProfile(
+    val email: String? = null,
+    val sms: String? = null,
+    val tags: Map<String, String> = emptyMap(),
+    val aliases: Map<String, String> = emptyMap(),
+) {
+    internal fun validate() {
+        email?.let { requireNotNull(HsContacts.normalizeEmail(it)) { "Geçersiz e-posta adresi" } }
+        sms?.let { requireNotNull(HsContacts.normalizePhone(it)) { "Geçersiz telefon numarası" } }
+    }
+}
+
 /** Abonelik durumu (gözlemciler için). */
 data class HsPushSubscriptionState(val id: String?, val token: String?, val optedIn: Boolean, val permission: Boolean)
 
@@ -60,13 +76,13 @@ data class HsPushSubscriptionState(val id: String?, val token: String?, val opte
  * Pushizo Android SDK (eski sağlayıcı v5 yüzeyiyle uyumlu).
  *
  * ```kotlin
- * Pushizo.initialize(this, "app_…", Pushizo.Options(apiUrl = "https://api.example.com"))
+ * Pushizo.initialize(this, "app_…", Pushizo.Options(apiUrl = "https://api.pushizo.com"))
  * Pushizo.Notifications.requestPermission(activity)
  * Pushizo.Notifications.addPermissionObserver { granted -> }
  * Pushizo.login("user_42")
  * Pushizo.login("user_42", jwt = jwtFromYourServer) // identity verification `jwt`/`both`
  * Pushizo.User.addTag("plan", "pro")
- * Pushizo.User.addEmail("ali@example.com")
+ * Pushizo.User.addEmail("ali@pushizo.com")
  * Pushizo.InAppMessages.addTrigger("level", "gold")
  * val page = Pushizo.Inbox.list(limit = 20)
  * ```
@@ -100,6 +116,11 @@ object Pushizo {
     private val foregroundListeners = CopyOnWriteArraySet<(HsForegroundEvent) -> Unit>()
     private val subscriptionObservers = CopyOnWriteArraySet<(HsPushSubscriptionState) -> Unit>()
     private val permissionObservers = HsPermissionObservers { HsLog.w("izin gözlemcisi hata verdi", it) }
+    private val featureFlagObservers = HsObserverSet<HsFeatureFlagObserver> { HsLog.w("özellik bayrağı gözlemcisi hata verdi", it) }
+    private val inboxObservers = HsObserverSet<HsInboxObserver> { HsLog.w("bildirim kutusu gözlemcisi hata verdi", it) }
+    private val inboxTracker = HsInboxTracker { event ->
+        if (!inboxObservers.isEmpty) onMain { inboxObservers.dispatch { it.onChange(event) } }
+    }
     @Volatile private var sessionTracker: HsSessionTracker? = null
     /** Arka plana geçişten 30 sn sonra oturumu kapatan iş (ön plana dönülürse iptal edilir). */
     @Volatile private var sessionEndJob: Job? = null
@@ -266,12 +287,15 @@ object Pushizo {
         PushizoChat.onLogout()
         // Paylaşım tercihi korunur; onay yeniden verilince konum ilk ön plana geçişte hemen gönderilir.
         store.locationLastSharedAt = 0L
+        // Onay geri alındı: işletim sistemi bölgeleri izlemeyi bırakır, onay gelince yeniden kaydedilir.
+        appContext?.let { HsGeofenceMonitor.unregister(it) }
+        store.geofenceLastSyncAt = 0L
         appContext?.let { WorkManager.getInstance(it).cancelUniqueWork(FLUSH_WORK) }
         if (options.requiresPrivacyConsent && wasAllowed) closeSubscriptionAfterConsentRevoked(store, clearLocation)
     }
 
     /**
-     * Onay geri alındı: eski sağlayıcı'deki gibi bundan sonra hiçbir veri gönderilmez (kuyruk boşaltıldı, ağ kapısı kapalı).
+     * Onay geri alındı: eski sağlayıcıdaki gibi bundan sonra hiçbir veri gönderilmez (kuyruk boşaltıldı, ağ kapısı kapalı).
      * Tek istisna bilinçli olarak bu çağrıdır: onaydan önce kaydedilmiş push aboneliği bildirim almaya devam etmesin
      * diye sunucuya bir kez `opted_in: false` yazılır (yeni kişisel veri içermez, yalnızca sahiplik kanıtı). Kullanıcının
      * yerel tercihi (`optedIn`) korunur; onay yeniden verilince [reconcileSubscription] onu sunucuya geri yazar.
@@ -313,6 +337,7 @@ object Pushizo {
                 HsLog.w("$channel token alınamadı", it)
                 reportError(tokenErrorCode(channel), "$channel token alınamadı", it)
             }
+            startPushRegistrars()
             if (queue?.flush() == false) scheduleFlush()
             // Onay yeni verildiyse ve uygulama ön plandaysa konum paylaşımı da başlar.
             if (isInForeground()) shareLocationIfDue()
@@ -337,8 +362,39 @@ object Pushizo {
     internal fun activePushChannel(): String = pushProvider?.channel ?: HsPushProviders.CHANNEL_FCM
 
     /** Token hatası rapor kodu (FCM için önceki sürümlerle aynı `fcm_token_failed`). */
-    internal fun tokenErrorCode(channel: String): String =
-        if (channel == HsPushProviders.CHANNEL_HMS) "hms_token_failed" else "fcm_token_failed"
+    internal fun tokenErrorCode(channel: String): String = when (channel) {
+        HsPushProviders.CHANNEL_HMS -> "hms_token_failed"
+        HsPushProviders.CHANNEL_ADM -> "adm_token_failed"
+        else -> "fcm_token_failed"
+    }
+
+    /** İkincil kayıt modüllerini (ör. `pushizo-adm`) başlatır; modül hatası SDK başlatmasını durdurmaz. */
+    private fun startPushRegistrars() {
+        val ctx = appContext ?: return
+        for (registrar in HsPushProviders.registrars()) {
+            runCatching { registrar.start(ctx) }.onFailure { HsLog.w("ek push kaydı başlatılamadı", it) }
+        }
+    }
+
+    /** `pushizo-adm` modülünden gelen kayıt kimliği: eski kimliklerin aboneliği silinir, yenisi kaydedilir. */
+    internal fun onAdmRegistered(registrationId: String) {
+        val store = storage ?: return
+        val known = HsAdmRegistration.known(store.contacts(HsPushProviders.CHANNEL_ADM).keys, store.queue)
+        val ops = HsAdmRegistration.registrationOps(known, registrationId, System.currentTimeMillis())
+        if (ops == null) {
+            HsLog.w("ADM kayıt kimliği geçersiz")
+            reportError("adm_registration_invalid", "ADM kayıt kimliği geçersiz")
+            return
+        }
+        ops.forEach(::enqueue)
+    }
+
+    /** ADM kaydı silindi: kimlik verildiyse o abonelik, verilmediyse bu cihazın bütün `adm_push` abonelikleri silinir. */
+    internal fun onAdmUnregistered(registrationId: String?) {
+        val store = storage ?: return
+        val known = HsAdmRegistration.known(store.contacts(HsPushProviders.CHANNEL_ADM).keys, store.queue)
+        HsAdmRegistration.unregistrationOps(known, registrationId, System.currentTimeMillis()).forEach(::enqueue)
+    }
 
     /** Etkin sağlayıcının token'ını alır; değiştiyse (veya kayıt yoksa) sunucuya kaydeder. */
     internal fun refreshPushToken() {
@@ -431,13 +487,15 @@ object Pushizo {
             }
         }
         val sync = HsTokenSync { method, path, body -> api.request(method, path, body) }
-        val device = deviceInfo(ctx)
+        val delivery = deliveryStatus(ctx)
+        val device = deviceInfo(ctx, delivery)
         val previousToken = store.registeredToken
         when (val result = sync.sync(store.subscriptionId, previousToken, token, device, user, channel, store.pushChannel)) {
             HsTokenSyncResult.Unchanged -> return
             HsTokenSyncResult.Updated -> {
                 store.registeredToken = token
                 store.serverPushCapable = device.optBoolean("push_capable")
+                markDeliverySynced(store, delivery)
             }
             is HsTokenSyncResult.Created -> {
                 // Kanal değişti (FCM ↔ HMS): eski push aboneliği kalıcı kuyrukla silinir (kanıt: eski token'ın özeti).
@@ -452,6 +510,7 @@ object Pushizo {
                 store.pendingIdentityHash = null
                 store.identitySyncPending = false
                 store.serverPushCapable = device.optBoolean("push_capable")
+                markDeliverySynced(store, delivery)
                 // Yeni abonelik varsayılan olarak opted_in; kullanıcı daha önce optOut yaptıysa aşağıda PATCH edilir.
                 store.serverOptedIn = true
                 runCatching { reconcileSubscription() }.onFailure { HsLog.w("opt-out durumu yeni aboneliğe yazılamadı", it) }
@@ -468,7 +527,21 @@ object Pushizo {
     private fun appVersion(ctx: Context): String? =
         runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull()
 
-    private fun deviceInfo(ctx: Context): JSONObject = HsEvents.deviceInfo(
+    /** Teslimat teşhisi (ADR-0092): üretici, ROM ve arka plan kısıtı bayrakları; okunamazsa null (kayıt yine yapılır). */
+    private fun deliveryStatus(ctx: Context): HsDeliveryStatus? =
+        runCatching { HsDeliveryProbe.status(ctx, Notifications.permission, options.defaultChannelId) }
+            .onFailure { HsLog.w("teslimat teşhisi okunamadı", it) }
+            .getOrNull()
+
+    /** Teşhis sunucuya yazıldı: sonraki değişiklik tespiti için özetler saklanır. */
+    private fun markDeliverySynced(store: HsStorage, status: HsDeliveryStatus?) {
+        status ?: return
+        store.serverDeliveryStable = status.stableFingerprint
+        store.serverDeliveryVolatile = status.volatileFingerprint
+        store.serverDeliverySyncedAt = System.currentTimeMillis()
+    }
+
+    private fun deviceInfo(ctx: Context, delivery: HsDeliveryStatus? = deliveryStatus(ctx)): JSONObject = HsEvents.deviceInfo(
         model = "${Build.MANUFACTURER} ${Build.MODEL}",
         osVersion = Build.VERSION.RELEASE,
         appVersion = appVersion(ctx),
@@ -476,12 +549,14 @@ object Pushizo {
         locale = Locale.getDefault().toLanguageTag(),
         timezone = TimeZone.getDefault().id,
         pushCapable = Notifications.permission,
-    )
+        formFactor = if (ctx.packageManager.hasSystemFeature("android.hardware.type.watch")) "watch" else "phone",
+    ).also { device -> delivery?.applyTo(device) }
 
     /**
      * Sunucudaki `device.push_capable` ve `opted_in` değerlerini yereldekiyle eşitler: yalnızca son başarıyla yazılan
      * değerden farklıysa `PATCH /subscriptions/{id}` gönderilir. İzin uygulama kapalıyken ayarlardan değiştirilse veya
      * değişiklik onay beklenirken olsa da sunucu (push_capable=false → `pending`) bir sonraki başlatmada güncellenir.
+     * Teslimat teşhisi (ADR-0092) de aynı istekle yazılır: kalıcı bayrak değişince hemen, sık değişen bayraklar günde bir.
      */
     private fun reconcileSubscription() {
         val store = storage ?: return
@@ -491,9 +566,14 @@ object Pushizo {
         if (!networkAllowed()) return
         val pushCapable = Notifications.permission
         val optedIn = store.optedIn
-        if (store.serverPushCapable == pushCapable && store.serverOptedIn == optedIn) return
-        val body = JSONObject().put("device", deviceInfo(ctx)).put("opted_in", optedIn)
+        val delivery = deliveryStatus(ctx)
+        val deliveryDue = delivery != null && HsDeliveryRules.shouldSync(
+            store.serverDeliveryStable, store.serverDeliveryVolatile, store.serverDeliverySyncedAt, delivery, System.currentTimeMillis(),
+        )
+        if (store.serverPushCapable == pushCapable && store.serverOptedIn == optedIn && !deliveryDue) return
+        val body = JSONObject().put("device", deviceInfo(ctx, delivery)).put("opted_in", optedIn)
         api.request("PATCH", "/subscriptions/$subId", HsOwnership.withProof(body, store.registeredToken))
+        markDeliverySynced(store, delivery)
         store.serverPushCapable = pushCapable
         store.serverOptedIn = optedIn
     }
@@ -655,6 +735,11 @@ object Pushizo {
                 val body = HsOwnership.withProof(HsAdsRules.body(op), ownershipToken(store, subId), store.externalId?.let { store.userIdentityHash })
                 api.request("PATCH", "/subscriptions/$subId", body)
             }
+            HsGeofenceRules.OP_TYPE -> {
+                val subId = engagementSubscriptionId() ?: throw HsDeferredException("abonelik yok")
+                val body = HsOwnership.withProof(HsGeofenceRules.body(op), ownershipToken(store, subId), store.externalId?.let { store.userIdentityHash })
+                api.request("POST", "/subscriptions/$subId/geofence-events", body)
+            }
             HsLocationRules.OP_TYPE -> {
                 // Kuyrukta daha yeni konum işlemi varsa (ör. paylaşım kapatıldı) bu işlem gönderilmeden atılır.
                 if (HsLocationRules.isSuperseded(op, store.queue)) return
@@ -672,7 +757,7 @@ object Pushizo {
                     if (e.status != 404) throw e // 404: abonelik zaten silinmiş
                 }
             }
-            "received" -> api.request("POST", "/deliveries/${op.getString("delivery_id")}/received", JSONObject())
+            "received" -> api.request("POST", "/deliveries/${op.getString("delivery_id")}/received", HsDeliveryRules.receivedBody(op))
             "dismissed" -> api.request("POST", "/deliveries/${op.getString("delivery_id")}/dismissed", JSONObject())
             "opened" -> {
                 val body = JSONObject()
@@ -694,10 +779,13 @@ object Pushizo {
                 if (transition.started) enqueue(JSONObject().put("type", "session_start").put("at", now))
             }
             inApp?.onSessionStart()
+            scope.launch { refreshFeatureFlags() }
             // Dinleyici yoksa (ör. soğuk başlangıçta köprü henüz bağlanmadı) tıklama addClickListener'a kadar saklanır.
             if (clickListeners.isNotEmpty()) pendingClick?.let { click -> pendingClick = null; clickListeners.forEach { it(click) } }
             // Kullanıcı izni sistem ayarlarından değiştirmiş olabilir.
             checkPermissionChange()
+            // Pil optimizasyonu / arka plan kısıtı ayarlardan değişmiş olabilir (ADR-0092).
+            syncDeliveryDiagnostics()
             // Oturum başında ve ön plana dönüşte konum (paylaşım açıksa, en sık 5 dakikada bir).
             shareLocationIfDue()
         }
@@ -747,7 +835,60 @@ object Pushizo {
                 return@current
             }
             enqueue(op)
+            syncGeofencesIfDue(fix)
         }
+    }
+
+    /** Bölge listesini gerekirse yeniler ve işletim sistemine kaydeder (ADR-0065 §3). Hata izlemeyi durdurmaz: sonraki konumda yeniden denenir. */
+    private fun syncGeofencesIfDue(fix: HsLocationFix) {
+        val store = storage ?: return
+        val ctx = appContext ?: return
+        val client = api ?: return
+        val now = System.currentTimeMillis()
+        val uptime = android.os.SystemClock.elapsedRealtime()
+        if (!store.locationShared || !networkAllowed()) return
+        if (!HsGeofenceMonitor.isAvailable() || !HsGeofenceMonitor.backgroundPermissionGranted(ctx)) return
+        if (!HsGeofenceRules.isSyncDue(store, fix.lat, fix.lng, now, uptime)) return
+        scope.launch {
+            try {
+                val response = client.request("GET", "/geofences?lat=${fix.lat}&lng=${fix.lng}&limit=${HsGeofenceRules.MAX_REGIONS}")
+                HsGeofenceMonitor.register(ctx, HsGeofenceRules.parseRegions(response))
+                store.geofenceLastSyncAt = now
+                store.geofenceLastSyncLat = fix.lat
+                store.geofenceLastSyncLng = fix.lng
+                store.geofenceLastSyncUptime = uptime
+            } catch (e: HsApiException) {
+                HsLog.d("bölge listesi alınamadı: ${e.status}")
+            }
+        }
+    }
+
+    /** Bayrakları sunucudan alır (ADR-0066). Hata son değerleri korur; onay beklenirken istek gönderilmez. */
+    private fun refreshFeatureFlags(): Boolean {
+        val store = storage ?: return false
+        val client = api ?: return false
+        if (!networkAllowed()) return false
+        val subject = store.featureFlagSubject ?: HsFeatureFlagRules.newSubject().also { store.featureFlagSubject = it }
+        val subId = engagementSubscriptionId()
+        var body = HsFeatureFlagRules.body(subId, subject)
+        if (subId != null) body = HsOwnership.withProof(body, ownershipToken(store, subId), store.externalId?.let { store.userIdentityHash })
+        return try {
+            val flags = HsFeatureFlagRules.parse(client.request("POST", "/feature-flags/evaluate", body)) ?: return false
+            store.featureFlagsJson = flags.toString()
+            if (!featureFlagObservers.isEmpty) onMain { featureFlagObservers.dispatch { it.onChange() } }
+            true
+        } catch (e: HsApiException) {
+            HsLog.d("özellik bayrakları alınamadı: ${e.status}")
+            false
+        }
+    }
+
+    /** İşletim sisteminin bölge bildirimi: kalıcı kuyruğa yazılır, koordinat gönderilmez. Paylaşım veya onay kapalıysa atılır. */
+    internal fun reportGeofenceTransition(geofenceIds: List<String>, transition: String) {
+        val store = storage ?: return
+        if (!store.geofencingEnabled || !store.locationShared || !networkAllowed()) return
+        val now = System.currentTimeMillis()
+        geofenceIds.forEach { enqueue(HsGeofenceRules.op(it, transition, now)) }
     }
 
     private fun enqueueSessionEnd(durationSeconds: Int) =
@@ -755,7 +896,25 @@ object Pushizo {
 
     // --- Teslimat geri bildirimi (servis/receiver çağırır) ---
 
-    internal fun reportReceived(deliveryId: String) = enqueue(JSONObject().put("type", "received").put("delivery_id", deliveryId).put("at", System.currentTimeMillis()))
+    /**
+     * Teslim alındısı (confirmed delivery). Uygulama arka plandayken süreç, alındı gönderilemeden üretici pil yöneticisi
+     * tarafından durdurulabilir; bu yüzden kalıcı kuyruğa ek olarak WorkManager flush'ı da planlanır (ADR-0092). Alındı
+     * cihazın mesajı aldığı anı taşır; [deprioritized]: FCM yüksek önceliği normale düşürdü.
+     */
+    internal fun reportReceived(deliveryId: String, deprioritized: Boolean = false) {
+        enqueue(HsDeliveryRules.receivedOp(deliveryId, System.currentTimeMillis(), deprioritized))
+        if (!isInForeground()) runCatching { scheduleFlush() }.onFailure { HsLog.w("alındı için flush planlanamadı", it) }
+    }
+
+    /** Ön plana gelişte teslimat teşhisini (gerekiyorsa) sunucuya yazar; kayıt yoksa bir şey yapmaz. */
+    private fun syncDeliveryDiagnostics() {
+        val store = storage ?: return
+        if (store.subscriptionId == null) return
+        scope.launch {
+            runCatching { synchronized(registrationLock) { reconcileSubscription() } }
+                .onFailure { HsLog.d("teslimat teşhisi eşitlenemedi") }
+        }
+    }
 
     /** Kullanıcı bildirimi kaydırarak/temizleyerek kapattı (deleteIntent). */
     internal fun reportDismissed(deliveryId: String) = enqueue(JSONObject().put("type", "dismissed").put("delivery_id", deliveryId).put("at", System.currentTimeMillis()))
@@ -824,6 +983,18 @@ object Pushizo {
 
     // --- Public API ---
 
+    /** Kullanıcıyı kimliklendirir ve [profile] alanlarını tek çağrıda ayarlar. Kimlik kanıtı diğer `login` ile aynıdır. */
+    @JvmStatic
+    @JvmOverloads
+    fun login(externalId: String, profile: HsUserProfile, identityHash: String? = null, jwt: String? = null) {
+        profile.validate()
+        login(externalId, identityHash, jwt)
+        profile.email?.let { User.addEmail(it) }
+        profile.sms?.let { User.addSms(it) }
+        if (profile.tags.isNotEmpty()) User.addTags(profile.tags)
+        if (profile.aliases.isNotEmpty()) User.addAliases(profile.aliases)
+    }
+
     /**
      * Kullanıcıyı kimliklendirir. Kimlik kanıtı app ayarına göre HMAC [identityHash] ve/veya sunucunuzda imzalanmış
      * ES256 [jwt]'dir (`login("user_42", jwt = token)`). JWT kalıcı saklanır ve sonraki tüm SDK isteklerinde
@@ -872,6 +1043,7 @@ object Pushizo {
             inApp?.reset()
             inApp?.onSubscriptionChanged()
             queue?.flush()
+            inboxTracker.reset()
             // Canlı sohbet ziyaretçisi giriş yapan kullanıcıya bağlanır (sohbet kullanılıyorsa).
             PushizoChat.onIdentityChanged()
         }
@@ -896,6 +1068,7 @@ object Pushizo {
         val store = storage ?: return
         // Sohbet ziyaretçisi sıfırlanır: cihazı kullanan sonraki kişi önceki sohbeti görmez.
         PushizoChat.onLogout()
+        inboxTracker.reset()
         scope.launch {
             if (!networkAllowed()) {
                 // Onay yokken yalnızca yerel kimlik temizlenir; onay verilince start() sunucudaki aboneliği ayırır.
@@ -984,8 +1157,23 @@ object Pushizo {
         }
         @JvmStatic fun setLanguage(code: String) = enqueue(JSONObject().put("type", "properties").put("properties", JSONObject().put("language", code)).put("at", System.currentTimeMillis()))
 
+        /**
+         * Kullanıcı özelliği ayarlar (ör. `setProperty("plan", "pro")`); `null` özelliği siler. Değer metin, sayı,
+         * mantıksal, harita veya liste olabilir. Çevrimdışıyken kuyrukta bekler (Web SDK `User.setProperty` eşdeğeri).
+         */
+        @JvmStatic fun setProperty(key: String, value: Any?) = enqueue(HsUserProperties.op(key, value, System.currentTimeMillis()))
+
         /** E-posta aboneliği ekler (küçük harfe çevrilir); geçersiz adreste `IllegalArgumentException`. Çevrimdışıyken kuyrukta bekler. */
         @JvmStatic fun addEmail(email: String) = contactOp("contact_add", "email", requireNotNull(HsContacts.normalizeEmail(email)) { INVALID_EMAIL })
+
+        /**
+         * Fire OS ADM kayıt kimliği. Ana FCM aboneliğinin yerine geçmez. `pushizo-adm` modülü eklendiyse kayıt ve kimlik
+         * yenileme otomatiktir; bu çağrı ADM kaydını kendisi yapan uygulamalar içindir.
+         */
+        @JvmStatic fun registerAdm(token: String) {
+            val value = requireNotNull(HsAdmRegistration.normalize(token)) { "ADM registration id" }
+            contactOp("contact_add", HsPushProviders.CHANNEL_ADM, value)
+        }
 
         /** E-posta aboneliğini siler (`DELETE /subscriptions/{id}`). */
         @JvmStatic fun removeEmail(email: String) = contactOp("contact_remove", "email", requireNotNull(HsContacts.normalizeEmail(email)) { INVALID_EMAIL })
@@ -1172,6 +1360,32 @@ object Pushizo {
         @JvmStatic fun removeForegroundLifecycleListener(listener: (HsForegroundEvent) -> Unit) { foregroundListeners.remove(listener) }
 
         /**
+         * Rozet sayısını ayarlar. Android'de başlatıcı rozeti için standart bir "sayıyı ayarla" API'si yoktur: rozet
+         * tepsideki bildirimlerden üretilir. SDK sayıyı saklar ve bundan sonra gösterdiği bildirimlere
+         * (`NotificationCompat.Builder.setNumber`) yazar; sayı gösteren başlatıcılar (Android 8+) bu değeri kullanır.
+         * Tepside bildirim yokken rozet görünmez; üreticiye özel yayınlar (ShortcutBadger benzeri) kullanılmaz.
+         *
+         * @return Sayı saklandı ve rozet bu cihazda gösterilebiliyorsa true; Android 8 öncesinde, bildirimler kapalıyken
+         * veya varsayılan kanalın rozeti kullanıcı tarafından kapatıldıysa false (sayı yine saklanır).
+         */
+        @JvmStatic fun setBadgeCount(count: Int): Boolean {
+            val store = storage ?: return false
+            val ctx = appContext ?: return false
+            store.badgeCount = HsBadgeRules.normalize(count)
+            val manager = NotificationManagerCompat.from(ctx)
+            // Kanal henüz oluşturulmadıysa (ilk bildirim gelmedi) Android varsayılanı rozet açıktır.
+            val channelShowsBadge = Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
+                manager.getNotificationChannel(options.defaultChannelId)?.canShowBadge() != false
+            return HsBadgeRules.supported(Build.VERSION.SDK_INT, manager.areNotificationsEnabled(), channelShowsBadge)
+        }
+
+        /** Saklanan rozet sayısını sıfırlar (`setBadgeCount(0)`); tepsideki bildirimleri kaldırmak için [clearAll]. */
+        @JvmStatic fun clearBadge() { setBadgeCount(0) }
+
+        /** `setBadgeCount` ile saklanan son sayı (Java: `Pushizo.Notifications.INSTANCE.getBadgeCount()`). */
+        val badgeCount: Int get() = storage?.badgeCount ?: 0
+
+        /**
          * Tepsideki tüm Pushizo bildirimlerini (grup özetleri dahil) kaldırır. Android'de başlatıcı rozeti/noktası
          * görünen bildirimlerden hesaplandığından rozet de sıfırlanır. Uygulamanın kendi bildirimlerine dokunulmaz.
          */
@@ -1201,6 +1415,83 @@ object Pushizo {
      * kısıtlamadıysa `AdvertisingIdClient` ile aldığı kimliği verir. Kimlik yalnızca `ads_personalization` rızası olan
      * kullanıcılarda ve SHA-256 özetiyle reklam kitlesine gönderilir. `null` veya sıfır kimlik sunucudaki kaydı siler.
      */
+    /**
+     * Teslimat güçlendirme (ADR-0092): bazı üreticilerin (Xiaomi, Huawei, Honor, Oppo, Realme, OnePlus, Vivo, Samsung…)
+     * pil ve otomatik başlatma yöneticileri arka plandaki uygulamaları durdurduğu için bildirimler gecikebilir ya da hiç
+     * gelmeyebilir. Bu API cihazın durumunu okur ve kullanıcıyı doğru ayar ekranına götürür. Ek izin gerektirmez.
+     */
+    object Delivery {
+        /**
+         * Cihazın teslim durumu: üretici, ROM, pil optimizasyonu muafiyeti, arka plan kısıtı, bekleme kovası, bildirim
+         * izni/kanalı. Eşzamanlı okunur; SDK başlatılmadıysa null.
+         */
+        @JvmStatic fun status(): HsDeliveryStatus? = appContext?.let(::deliveryStatus)
+
+        /**
+         * Hazır açıklama diyaloğu şimdi gösterilmeli mi: teslim riski var ve diyalog son [minIntervalDays] gün içinde
+         * gösterilmedi.
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun shouldShowGuidance(minIntervalDays: Int = HsDeliveryRules.DEFAULT_PROMPT_INTERVAL_DAYS): Boolean {
+            val store = storage ?: return false
+            val current = status() ?: return false
+            return HsDeliveryRules.shouldPrompt(current, store.deliveryPromptedAt, System.currentTimeMillis(), minIntervalDays)
+        }
+
+        /**
+         * Ayar ekranını açar. [setting] `AUTO` ise duruma en uygun ekran seçilir. Üreticiye özgü ekran bulunamazsa standart
+         * Android ekranına (pil optimizasyonu listesi, uygulama ayrıntıları, ayarlar) düşülür. Ekran açıldıysa true döner;
+         * hiçbir durumda istisna atmaz. [context] Activity ise ekran aynı görevde açılır.
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun openSettings(context: Context, setting: HsDeliverySetting = HsDeliverySetting.AUTO): Boolean = runCatching {
+            val current = deliveryStatus(context) ?: return@runCatching false
+            HsDeliveryProbe.open(context, current, setting)
+        }.onFailure { HsLog.w("teslimat ayar ekranı açılamadı", it) }.getOrDefault(false)
+
+        /**
+         * Hazır açıklama diyaloğu (22 dil; metinler uygulamada `hs_delivery_*` adlarıyla ezilebilir): kullanıcı kabul ederse
+         * [setting] ekranı açılır. [message] verilirse SDK metni yerine o gösterilir. [onResult]: ayar ekranı açıldıysa true,
+         * kullanıcı vazgeçtiyse ya da ekran açılamadıysa false (ana iş parçacığında). Diyaloğun gösterildiği an saklanır
+         * ([shouldShowGuidance]).
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun showGuidance(
+            activity: Activity,
+            setting: HsDeliverySetting = HsDeliverySetting.AUTO,
+            message: String? = null,
+            onResult: ((Boolean) -> Unit)? = null,
+        ) {
+            activity.runOnUiThread {
+                if (activity.isFinishing || activity.isDestroyed) {
+                    onResult?.invoke(false)
+                    return@runOnUiThread
+                }
+                val current = deliveryStatus(activity)
+                val defaultMessage = if (current?.vendor?.aggressive == true) R.string.hs_delivery_message_vendor else R.string.hs_delivery_message
+                storage?.deliveryPromptedAt = System.currentTimeMillis()
+                runCatching {
+                    android.app.AlertDialog.Builder(activity)
+                        .setTitle(R.string.hs_delivery_title)
+                        .setMessage(message?.takeIf { it.isNotBlank() } ?: activity.getString(defaultMessage))
+                        .setPositiveButton(R.string.hs_delivery_open_settings) { _, _ ->
+                            val opened = openSettings(activity, setting)
+                            onResult?.invoke(opened)
+                        }
+                        .setNegativeButton(R.string.hs_location_rationale_not_now) { _, _ -> onResult?.invoke(false) }
+                        .setOnCancelListener { onResult?.invoke(false) }
+                        .show()
+                }.onFailure {
+                    HsLog.w("teslimat açıklama diyaloğu gösterilemedi", it)
+                    onResult?.invoke(false)
+                }
+            }
+        }
+    }
+
     object Ads {
         @JvmStatic fun setAdvertisingId(id: String?) {
             if (storage == null) return
@@ -1230,7 +1521,72 @@ object Pushizo {
                 return
             }
             store.locationLastSharedAt = 0L
+            // Paylaşım kapandı: bölge izleme de durur, tercih korunur.
+            appContext?.let { HsGeofenceMonitor.unregister(it) }
+            store.geofenceLastSyncAt = 0L
             if (wasShared) HsLocationRules.op(null, System.currentTimeMillis())?.let(::enqueue)
+        }
+
+        /** Arka plan bölge izleme açık mı (kalıcı tercih). */
+        @JvmStatic val isGeofencingEnabled: Boolean get() = storage?.geofencingEnabled ?: false
+
+        /** Arka plan konum izni verilmiş mi. */
+        @JvmStatic val backgroundPermissionGranted: Boolean get() = appContext?.let { HsGeofenceMonitor.backgroundPermissionGranted(it) } ?: false
+
+        /**
+         * Arka plan bölge izlemeyi açar veya kapatır (ADR-0065; varsayılan kapalı). İzlemeyi işletim sistemi yapar, sunucuya koordinat gitmez, yalnızca
+         * giriş ve çıkış bildirilir. [setShared] açık, arka plan izni verilmiş ve uygulamada `play-services-location` bağımlılığı ekli olmalıdır.
+         */
+        @JvmStatic fun setGeofencingEnabled(enabled: Boolean) {
+            val store = storage ?: return
+            store.geofencingEnabled = enabled
+            store.geofenceLastSyncAt = 0L
+            if (!enabled) {
+                appContext?.let { HsGeofenceMonitor.unregister(it) }
+                return
+            }
+            if (!HsGeofenceMonitor.isAvailable()) {
+                HsLog.w("bölge izleme başlatılamadı: uygulamada com.google.android.gms:play-services-location yok")
+                return
+            }
+            refreshGeofences()
+        }
+
+        /**
+         * Arka plan konum iznini ister: önce açıklama diyaloğu, sonra sistem istemi. Android 11 ve sonrasında sistem Ayarlar ekranını açar. Hassas konum izni önce verilmiş
+         * olmalıdır. Sonuç için Activity `onRequestPermissionsResult` içinden [onPermissionResult] çağrılır.
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun requestBackgroundPermission(activity: Activity, rationale: String? = null) {
+            if (HsGeofenceMonitor.backgroundPermissionGranted(activity)) {
+                onPermissionResult()
+                return
+            }
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                requestPermission(activity, rationale)
+                return
+            }
+            if (!HsGeofenceMonitor.backgroundPermissionDeclared(activity)) {
+                HsLog.w("arka plan konum izni istenemedi: uygulama manifest'inde ACCESS_BACKGROUND_LOCATION yok")
+                return
+            }
+            activity.runOnUiThread {
+                if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                android.app.AlertDialog.Builder(activity)
+                    .setTitle(R.string.hs_geofence_rationale_title)
+                    .setMessage(rationale?.takeIf { it.isNotBlank() } ?: activity.getString(R.string.hs_geofence_rationale_message))
+                    .setPositiveButton(R.string.hs_location_rationale_continue) { _, _ ->
+                        ActivityCompat.requestPermissions(activity, arrayOf(android.Manifest.permission.ACCESS_BACKGROUND_LOCATION), PERMISSION_REQUEST_CODE)
+                    }
+                    .setNegativeButton(R.string.hs_location_rationale_not_now, null)
+                    .show()
+            }
+        }
+
+        private fun refreshGeofences() {
+            val ctx = appContext ?: return
+            scope.launch { HsLocationProvider.current(ctx) { fix -> fix?.let(::syncGeofencesIfDue) } }
         }
 
         /**
@@ -1267,16 +1623,26 @@ object Pushizo {
         @JvmStatic fun onPermissionResult() {
             if (!permissionGranted) return
             scope.launch { shareLocationIfDue() }
+            if (storage?.geofencingEnabled == true) refreshGeofences()
         }
     }
 
     object Session {
         @JvmStatic
         @JvmOverloads
-        fun sendEvent(name: String, properties: Map<String, Any?> = emptyMap(), value: Double? = null) {
+        fun sendEvent(name: String, properties: Map<String, Any?> = emptyMap(), value: Double? = null) = send(name, properties, value, null)
+
+        /**
+         * [eventId] ile olay gönderir: reklam pikseli/Conversions API ile aynı kimlik verilirse sunucu olayı tekilleşir
+         * (ADR-0038; Web SDK `sendEvent(…, { eventId })` eşdeğeri). Geçersiz biçimde SDK kendi kimliğini üretir.
+         */
+        @JvmStatic
+        fun sendEvent(name: String, properties: Map<String, Any?>, value: Double?, eventId: String) = send(name, properties, value, eventId)
+
+        private fun send(name: String, properties: Map<String, Any?>, value: Double?, eventId: String?) {
             val op = JSONObject().put("type", "event").put("name", name).put("properties", JSONObject(properties))
-                .put("occurred_at", java.time.Instant.now().toString()).put("at", System.currentTimeMillis())
-                .put("event_id", java.util.UUID.randomUUID().toString())
+                .put("occurred_at", HsTime.isoNow()).put("at", System.currentTimeMillis())
+                .put("event_id", HsEvents.eventId(eventId) ?: java.util.UUID.randomUUID().toString())
             value?.let { op.put("value", it) }
             enqueue(op)
             inApp?.onEvent(name)
@@ -1327,6 +1693,85 @@ object Pushizo {
      * Bildirim kutusu (`add_to_inbox` mesajları). Login'de `identityHash` verildiyse isteklere eklenir.
      * Kotlin'de `suspend` sürümler, Java ve köprüler için [HsCallback] sürümleri kullanılır.
      */
+    /**
+     * Gömülü yerleşimler (ADR-0068): uygulamanın ayırdığı alana içerik. Model döner, çizim uygulamanındır; içerik ekrana gelince [reportImpression] çağrılır.
+     * Abonelik yoksa veya onay bekleniyorsa liste boştur.
+     */
+    object Placements {
+        private val KEY = Regex("^[a-z][a-z0-9_.-]{0,63}$")
+
+        /** Alanın içeriği; [callback] arka plan iş parçacığında çağrılır. Hata boş liste döner. */
+        @JvmStatic
+        @JvmOverloads
+        fun list(key: String, limit: Int = 1, callback: (List<HsInAppMessage>) -> Unit) {
+            require(KEY.matches(key)) { "Geçersiz yerleşim anahtarı." }
+            require(limit in 1..10) { "limit 1-10 olmalı." }
+            val store = storage
+            val client = api
+            val subId = engagementSubscriptionId()
+            if (store == null || client == null || subId == null || !networkAllowed()) return callback(emptyList())
+            scope.launch {
+                val proof = ownershipToken(store, subId)?.let { "&token_hash=" + HsOwnership.tokenHash(it) }.orEmpty()
+                val result = try {
+                    HsInAppParser.parseList(client.request("GET", "/placements/$key?subscription_id=${URLEncoder.encode(subId, "UTF-8")}$proof&supports=&limit=$limit"))
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // HsApiException dışında 2xx ama JSON olmayan gövde (ör. captive portal HTML'i) JSONException
+                    // fırlatır; kapsamda işleyici olmadığı için yakalanmazsa uygulama çöker ve köprü yanıtı hiç dönmez.
+                    HsLog.d("yerleşim alınamadı: ${(e as? HsApiException)?.status ?: e.javaClass.simpleName}")
+                    emptyList()
+                }
+                callback(result)
+            }
+        }
+
+        @JvmStatic fun reportImpression(message: HsInAppMessage) = record(message, "impression", null)
+
+        @JvmStatic fun reportClick(message: HsInAppMessage, buttonId: String) = record(message, "click", buttonId)
+
+        @JvmStatic fun reportDismiss(message: HsInAppMessage) = record(message, "dismiss", null)
+
+        private fun record(message: HsInAppMessage, type: String, buttonId: String?) {
+            val op = JSONObject().put("type", "in_app_event").put("message_id", message.id).put("event", type).put("at", System.currentTimeMillis())
+            buttonId?.let { op.put("button_id", it) }
+            message.variantId?.let { op.put("variant_id", it) }
+            enqueue(op)
+        }
+    }
+
+    /** Özellik bayrakları: değerler oturum başında yenilenir ve cihazda saklanır (ADR-0066). */
+    object FeatureFlags {
+        private fun cache(): JSONObject? = storage?.featureFlagsJson?.let { runCatching { JSONObject(it) }.getOrNull() }
+
+        /** Değerleri hemen yeniler; tamamlanınca [onComplete] başarı bilgisiyle çağrılır. */
+        @JvmStatic
+        @JvmOverloads
+        fun refresh(onComplete: ((Boolean) -> Unit)? = null) {
+            scope.launch {
+                val ok = refreshFeatureFlags()
+                onComplete?.invoke(ok)
+            }
+        }
+
+        /** Bayrak bu kullanıcı için açık mı; değer henüz yoksa [default]. */
+        @JvmStatic
+        @JvmOverloads
+        fun isEnabled(key: String, default: Boolean = false): Boolean = HsFeatureFlagRules.isEnabled(cache(), key, default)
+
+        /** Ham değer: metin, sayı, mantıksal, `JSONObject` veya `JSONArray`; değer yoksa [default]. */
+        @JvmStatic
+        @JvmOverloads
+        fun getValue(key: String, default: Any? = null): Any? = HsFeatureFlagRules.value(cache(), key) ?: default
+
+        /**
+         * Değerler sunucudan başarıyla yenilendiğinde (oturum başı ve [refresh]) çağrılır; ana iş parçacığında.
+         * Kotlin: `val observer = HsFeatureFlagObserver { … }`; kaldırmak için aynı örnek [removeObserver]'a verilir.
+         */
+        @JvmStatic fun addObserver(observer: HsFeatureFlagObserver) = featureFlagObservers.add(observer)
+        @JvmStatic fun removeObserver(observer: HsFeatureFlagObserver) = featureFlagObservers.remove(observer)
+    }
+
     object Inbox {
         /** Kanıt: etkileşim aboneliğinin kayıtlı token'ı (veya kanonik adresi) özeti ve login'deki identity_hash (ADR-0016). */
         private fun ctx(): HsInboxAuth {
@@ -1347,22 +1792,31 @@ object Pushizo {
             require(limit in 1..200) { "limit 1-200 olmalı." }
             val c = ctx()
             val path = "${base(c)}?${query(c)}&limit=$limit" + (cursor?.let { "&cursor=${enc(it)}" } ?: "")
-            return HsInboxParser.parsePage(call("GET", path))
+            return HsInboxParser.parsePage(call("GET", path)).also { inboxTracker.listed(it, firstPage = cursor == null) }
         }
+
+        /** Okunmamış sayısı (tek öğelik istek); yerel öğe önbelleğine dokunmaz. */
+        private fun fetchCount(): Int {
+            val c = ctx()
+            return HsInboxParser.parsePage(call("GET", "${base(c)}?${query(c)}&limit=1")).unreadCount
+        }
+
+        private fun countBlocking(): Int = fetchCount().also(inboxTracker::counted)
 
         private fun markReadBlocking(id: String): HsInboxItem {
             val c = ctx()
-            return HsInboxParser.parseItem(call("POST", "${base(c)}/${enc(id)}/read", body(c)))
+            return HsInboxParser.parseItem(call("POST", "${base(c)}/${enc(id)}/read", body(c))).also { inboxTracker.read(id, ::fetchCount) }
         }
 
         private fun markAllReadBlocking(): Int {
             val c = ctx()
-            return call("POST", "${base(c)}/read-all", body(c)).optInt("unread_count", 0)
+            return call("POST", "${base(c)}/read-all", body(c)).optInt("unread_count", 0).also(inboxTracker::readAll)
         }
 
         private fun archiveBlocking(id: String) {
             val c = ctx()
             call("DELETE", "${base(c)}/${enc(id)}?${query(c)}")
+            inboxTracker.archived(id, ::fetchCount)
         }
 
         /** Öğeler (yeniden eskiye), okunmamış sayısı ve sonraki sayfa imleci (`limit` 1-200). */
@@ -1374,14 +1828,69 @@ object Pushizo {
         /** Öğeyi kutudan kaldırır (arşivler). */
         suspend fun archive(id: String): Unit = withContext(Dispatchers.IO) { archiveBlocking(id) }
         /** Okunmamış öğe sayısı. */
-        suspend fun unreadCount(): Int = withContext(Dispatchers.IO) { listBlocking(1, null).unreadCount }
+        suspend fun unreadCount(): Int = withContext(Dispatchers.IO) { countBlocking() }
+
+        /**
+         * Kutu değişim gözlemcisi (Web SDK `Inbox.addObserver` eşdeğeri): okundu/tümü okundu/arşivleme her zaman,
+         * listeleme ve sayım yalnızca okunmamış sayısı değiştiyse bildirilir. Ana iş parçacığında çağrılır.
+         * Kotlin: `val observer = HsInboxObserver { event -> … }`; kaldırmak için aynı örnek [removeObserver]'a verilir.
+         */
+        @JvmStatic fun addObserver(observer: HsInboxObserver) = inboxObservers.add(observer)
+        @JvmStatic fun removeObserver(observer: HsInboxObserver) = inboxObservers.remove(observer)
 
         @JvmStatic @JvmOverloads
         fun list(limit: Int = 50, cursor: String? = null, callback: HsCallback<HsInboxPage>) = async(callback) { listBlocking(limit, cursor) }
         @JvmStatic fun markRead(id: String, callback: HsCallback<HsInboxItem>) = async(callback) { markReadBlocking(id) }
         @JvmStatic fun markAllRead(callback: HsCallback<Int>) = async(callback) { markAllReadBlocking() }
         @JvmStatic fun archive(id: String, callback: HsCallback<Unit>) = async(callback) { archiveBlocking(id) }
-        @JvmStatic fun unreadCount(callback: HsCallback<Int>) = async(callback) { listBlocking(1, null).unreadCount }
+        @JvmStatic fun unreadCount(callback: HsCallback<Int>) = async(callback) { countBlocking() }
+
+        private fun <T> async(callback: HsCallback<T>, block: () -> T) {
+            scope.launch { callback.onResult(runCatching(block)) }
+        }
+    }
+
+    /**
+     * İçerik kartları (ADR-0082): kalıcı kart akışı (`content_card` mesajları). Kartlar bildirim kutusu listesinde
+     * görünmez. Gösterimde [logImpression], tıklamada [logClick], kapatmada [dismiss] çağrılır.
+     */
+    object ContentCards {
+        private fun ctx(): HsInboxAuth {
+            val store = storage ?: throw IllegalStateException("Pushizo.initialize önce çağrılmalı")
+            val subId = engagementSubscriptionId() ?: throw IllegalStateException("Abonelik henüz kaydedilmedi")
+            val userId = store.userId ?: throw IllegalStateException("Kullanıcı henüz kaydedilmedi")
+            return HsInboxAuth(userId, subId, ownershipToken(store, subId)?.let(HsOwnership::tokenHash), store.userIdentityHash)
+        }
+
+        private fun enc(value: String) = URLEncoder.encode(value, "UTF-8")
+        private fun call(method: String, path: String, body: JSONObject? = null): JSONObject =
+            api?.request(method, path, body) ?: throw IllegalStateException("Pushizo.initialize önce çağrılmalı")
+
+        private fun feedBlocking(limit: Int): HsContentCardFeed {
+            require(limit in 1..100) { "limit 1-100 olmalı." }
+            val c = ctx()
+            return HsContentCardParser.parseFeed(call("GET", "${c.cardsPath()}?${c.query()}&limit=$limit"))
+        }
+
+        private fun eventBlocking(id: String, event: String): HsContentCard {
+            val c = ctx()
+            return HsContentCardParser.parseCard(call("POST", "${c.cardsPath()}/${enc(id)}/$event", c.body()))
+        }
+
+        /** Kart akışı (sabitlenmiş → öncelik → yeni; `limit` 1-100). */
+        suspend fun list(limit: Int = 50): HsContentCardFeed = withContext(Dispatchers.IO) { feedBlocking(limit) }
+        /** Kart ekranda gösterildi (ilk gösterim kaydedilir). */
+        suspend fun logImpression(id: String): HsContentCard = withContext(Dispatchers.IO) { eventBlocking(id, "impression") }
+        /** Karta tıklandı (gösterim ve okundu da sayılır). */
+        suspend fun logClick(id: String): HsContentCard = withContext(Dispatchers.IO) { eventBlocking(id, "click") }
+        /** Kart kapatıldı; akıştan kalkar. */
+        suspend fun dismiss(id: String): HsContentCard = withContext(Dispatchers.IO) { eventBlocking(id, "dismiss") }
+
+        @JvmStatic @JvmOverloads
+        fun list(limit: Int = 50, callback: HsCallback<HsContentCardFeed>) = async(callback) { feedBlocking(limit) }
+        @JvmStatic fun logImpression(id: String, callback: HsCallback<HsContentCard>) = async(callback) { eventBlocking(id, "impression") }
+        @JvmStatic fun logClick(id: String, callback: HsCallback<HsContentCard>) = async(callback) { eventBlocking(id, "click") }
+        @JvmStatic fun dismiss(id: String, callback: HsCallback<HsContentCard>) = async(callback) { eventBlocking(id, "dismiss") }
 
         private fun <T> async(callback: HsCallback<T>, block: () -> T) {
             scope.launch { callback.onResult(runCatching(block)) }

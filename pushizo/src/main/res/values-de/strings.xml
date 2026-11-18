@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
+<resources>
+    <string name="hs_in_app_close">Schließen</string>
+    <string name="hs_in_app_message">Nachricht</string>
+    <string name="hs_in_app_carousel_card">Karte %1$d/%2$d: %3$s</string>
+    <string name="hs_location_rationale_title">Standort teilen</string>
+    <string name="hs_location_rationale_message">Wir verwenden Ihren ungefähren Standort nur, solange die App geöffnet ist, um Ihnen relevante Benachrichtigungen aus Ihrer Nähe zu senden. Sie können dies jederzeit deaktivieren.</string>
+    <string name="hs_location_rationale_continue">Weiter</string>
+    <string name="hs_location_rationale_not_now">Nicht jetzt</string>
+    <string name="hs_geofence_rationale_title">Standortzugriff im Hintergrund erlauben</string>
+    <string name="hs_geofence_rationale_message">Damit wir Sie benachrichtigen können, wenn Sie an einem Ort ankommen, benötigt die App jederzeit Zugriff auf Ihren Standort. Ihre Koordinaten werden nicht übertragen; geteilt wird nur das Betreten oder Verlassen eines Bereichs. Sie können dies jederzeit deaktivieren.</string>
+    <string name="hs_cards_empty">Noch keine Karten</string>
+    <string name="hs_cards_error">Karten konnten nicht geladen werden.</string>
+    <string name="hs_cards_retry">Erneut versuchen</string>
+    <string name="hs_cards_dismiss">Karte ausblenden</string>
+    <string name="hs_cards_pinned">Angeheftet</string>
+    <string name="hs_delivery_title">Keine Benachrichtigungen verpassen</string>
+    <string name="hs_delivery_message">Die Akkueinstellungen dieses Geräts können Benachrichtigungen verzögern. Erlauben Sie der App, ohne Akkubeschränkungen im Hintergrund zu laufen, damit Benachrichtigungen rechtzeitig ankommen.</string>
+    <string name="hs_delivery_message_vendor">Dieses Gerät kann Apps im Hintergrund beenden, sodass Benachrichtigungen verspätet oder gar nicht ankommen. Aktivieren Sie den Autostart für diese App und heben Sie die Akkubeschränkungen auf, damit Benachrichtigungen rechtzeitig ankommen.</string>
+    <string name="hs_delivery_open_settings">Einstellungen öffnen</string>
+    <string name="hs_chat_title">Chatten Sie mit uns</string>
+    <string name="hs_chat_close">Chat schließen</string>
+    <string name="hs_chat_online">Online</string>
+    <string name="hs_chat_offline">Wir sind offline</string>
+    <string name="hs_chat_placeholder">Nachricht eingeben…</string>
+    <string name="hs_chat_send">Senden</string>
+    <string name="hs_chat_attach">Datei anhängen</string>
+    <string name="hs_chat_typing">{name} schreibt…</string>
+    <string name="hs_chat_read">Gelesen</string>
+    <string name="hs_chat_delivered">Zugestellt</string>
+    <string name="hs_chat_sent">Gesendet</string>
+    <string name="hs_chat_sending">Wird gesendet…</string>
+    <string name="hs_chat_failed">Nicht gesendet</string>
+    <string name="hs_chat_retry">Erneut versuchen</string>
+    <string name="hs_chat_bot">Assistent</string>
+    <string name="hs_chat_agent">Mitarbeiter</string>
+    <string name="hs_chat_you">Sie</string>
+    <string name="hs_chat_offline_default">Wir sind gerade offline. Hinterlassen Sie Ihre E-Mail-Adresse, und wir melden uns bei Ihnen.</string>
+    <string name="hs_chat_email">Ihre E-Mail-Adresse</string>
+    <string name="hs_chat_name">Ihr Name (optional)</string>
+    <string name="hs_chat_message">Ihre Nachricht</string>
+    <string name="hs_chat_leave">Nachricht hinterlassen</string>
+    <string name="hs_chat_thanks">Vielen Dank! Wir haben Ihre Nachricht erhalten und antworten Ihnen per E-Mail.</string>
+    <string name="hs_chat_start">Chat starten</string>
+    <string name="hs_chat_email_required">Geben Sie Ihre E-Mail-Adresse ein, um den Chat zu starten.</string>
+    <string name="hs_chat_invalid_email">Geben Sie eine gültige E-Mail-Adresse ein.</string>
+    <string name="hs_chat_too_large">Dateien dürfen höchstens {mb} MB groß sein.</string>
+    <string name="hs_chat_error">Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.</string>
+    <string name="hs_chat_download">Herunterladen</string>
+    <string name="hs_chat_resolved">Diese Unterhaltung wurde als gelöst markiert. Senden Sie eine neue Nachricht, um sie wieder zu öffnen.</string>
+</resources>

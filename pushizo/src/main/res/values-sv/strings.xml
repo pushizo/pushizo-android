@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
+<resources>
+    <string name="hs_in_app_close">Stäng</string>
+    <string name="hs_in_app_message">Meddelande</string>
+    <string name="hs_in_app_carousel_card">Kort %1$d/%2$d: %3$s</string>
+    <string name="hs_location_rationale_title">Dela din plats</string>
+    <string name="hs_location_rationale_message">Vi använder din ungefärliga plats endast medan appen är öppen, för att skicka relevanta aviseringar i närheten. Du kan stänga av detta när som helst.</string>
+    <string name="hs_location_rationale_continue">Fortsätt</string>
+    <string name="hs_location_rationale_not_now">Inte nu</string>
+    <string name="hs_geofence_rationale_title">Tillåt plats i bakgrunden</string>
+    <string name="hs_geofence_rationale_message">För att kunna meddela dig när du kommer fram till en plats behöver appen alltid ha åtkomst till din plats. Dina koordinater skickas inte; endast att du går in i eller lämnar ett område delas. Du kan stänga av detta när som helst.</string>
+    <string name="hs_cards_empty">Inga kort ännu</string>
+    <string name="hs_cards_error">Det gick inte att läsa in korten.</string>
+    <string name="hs_cards_retry">Försök igen</string>
+    <string name="hs_cards_dismiss">Stäng kortet</string>
+    <string name="hs_cards_pinned">Fastnålat</string>
+    <string name="hs_delivery_title">Missa inga aviseringar</string>
+    <string name="hs_delivery_message">Batteriinställningarna på den här enheten kan fördröja aviseringar. Tillåt att appen körs i bakgrunden utan batteribegränsningar för att få aviseringarna i tid.</string>
+    <string name="hs_delivery_message_vendor">Den här enheten kan stoppa appar i bakgrunden, så aviseringar kan komma sent eller inte alls. Aktivera automatisk start för appen och ta bort batteribegränsningarna för att få aviseringarna i tid.</string>
+    <string name="hs_delivery_open_settings">Öppna inställningar</string>
+    <string name="hs_chat_title">Chatta med oss</string>
+    <string name="hs_chat_close">Stäng chatten</string>
+    <string name="hs_chat_online">Online</string>
+    <string name="hs_chat_offline">Vi är offline</string>
+    <string name="hs_chat_placeholder">Skriv ditt meddelande…</string>
+    <string name="hs_chat_send">Skicka</string>
+    <string name="hs_chat_attach">Bifoga en fil</string>
+    <string name="hs_chat_typing">{name} skriver…</string>
+    <string name="hs_chat_read">Läst</string>
+    <string name="hs_chat_delivered">Levererat</string>
+    <string name="hs_chat_sent">Skickat</string>
+    <string name="hs_chat_sending">Skickar…</string>
+    <string name="hs_chat_failed">Inte skickat</string>
+    <string name="hs_chat_retry">Försök igen</string>
+    <string name="hs_chat_bot">Assistent</string>
+    <string name="hs_chat_agent">Kundtjänst</string>
+    <string name="hs_chat_you">Du</string>
+    <string name="hs_chat_offline_default">Vi är offline just nu. Lämna din e-postadress så återkommer vi till dig.</string>
+    <string name="hs_chat_email">Din e-postadress</string>
+    <string name="hs_chat_name">Ditt namn (valfritt)</string>
+    <string name="hs_chat_message">Ditt meddelande</string>
+    <string name="hs_chat_leave">Lämna ett meddelande</string>
+    <string name="hs_chat_thanks">Tack! Vi har tagit emot ditt meddelande och svarar via e-post.</string>
+    <string name="hs_chat_start">Starta chatten</string>
+    <string name="hs_chat_email_required">Ange din e-postadress för att starta chatten.</string>
+    <string name="hs_chat_invalid_email">Ange en giltig e-postadress.</string>
+    <string name="hs_chat_too_large">Filer får vara högst {mb} MB.</string>
+    <string name="hs_chat_error">Något gick fel. Försök igen.</string>
+    <string name="hs_chat_download">Ladda ned</string>
+    <string name="hs_chat_resolved">Den här konversationen har markerats som löst. Skicka ett nytt meddelande för att öppna den igen.</string>
+</resources>

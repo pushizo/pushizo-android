@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
+<resources>
+    <string name="hs_in_app_close">Chiudi</string>
+    <string name="hs_in_app_message">Messaggio</string>
+    <string name="hs_in_app_carousel_card">Scheda %1$d/%2$d: %3$s</string>
+    <string name="hs_location_rationale_title">Condivida la sua posizione</string>
+    <string name="hs_location_rationale_message">Utilizziamo la sua posizione approssimativa solo mentre l\'app è aperta, per inviarle notifiche pertinenti nelle vicinanze. Può disattivare questa opzione in qualsiasi momento.</string>
+    <string name="hs_location_rationale_continue">Continua</string>
+    <string name="hs_location_rationale_not_now">Non ora</string>
+    <string name="hs_geofence_rationale_title">Consenti la posizione in background</string>
+    <string name="hs_geofence_rationale_message">Per avvisarla quando arriva in un luogo, l\'app deve poter accedere sempre alla sua posizione. Le sue coordinate non vengono inviate; viene condiviso solo l\'ingresso o l\'uscita da un\'area. Può disattivare questa opzione in qualsiasi momento.</string>
+    <string name="hs_cards_empty">Ancora nessuna scheda</string>
+    <string name="hs_cards_error">Impossibile caricare le schede.</string>
+    <string name="hs_cards_retry">Riprova</string>
+    <string name="hs_cards_dismiss">Ignora scheda</string>
+    <string name="hs_cards_pinned">Fissata</string>
+    <string name="hs_delivery_title">Non perda nessuna notifica</string>
+    <string name="hs_delivery_message">Le impostazioni della batteria di questo dispositivo possono ritardare le notifiche. Per riceverle in tempo, consenta all\'app di funzionare in background senza restrizioni della batteria.</string>
+    <string name="hs_delivery_message_vendor">Questo dispositivo può arrestare le app in background, quindi le notifiche possono arrivare in ritardo o non arrivare affatto. Per riceverle in tempo, attivi l\'avvio automatico per questa app e rimuova le restrizioni della batteria.</string>
+    <string name="hs_delivery_open_settings">Apri impostazioni</string>
+    <string name="hs_chat_title">Parli con noi</string>
+    <string name="hs_chat_close">Chiudi chat</string>
+    <string name="hs_chat_online">Online</string>
+    <string name="hs_chat_offline">Siamo offline</string>
+    <string name="hs_chat_placeholder">Scriva un messaggio…</string>
+    <string name="hs_chat_send">Invia</string>
+    <string name="hs_chat_attach">Allega un file</string>
+    <string name="hs_chat_typing">{name} sta scrivendo…</string>
+    <string name="hs_chat_read">Letto</string>
+    <string name="hs_chat_delivered">Consegnato</string>
+    <string name="hs_chat_sent">Inviato</string>
+    <string name="hs_chat_sending">Invio in corso…</string>
+    <string name="hs_chat_failed">Non inviato</string>
+    <string name="hs_chat_retry">Riprova</string>
+    <string name="hs_chat_bot">Assistente</string>
+    <string name="hs_chat_agent">Operatore</string>
+    <string name="hs_chat_you">Tu</string>
+    <string name="hs_chat_offline_default">Al momento siamo offline. Ci lasci il suo indirizzo email e la ricontatteremo.</string>
+    <string name="hs_chat_email">Il suo indirizzo email</string>
+    <string name="hs_chat_name">Il suo nome (facoltativo)</string>
+    <string name="hs_chat_message">Il suo messaggio</string>
+    <string name="hs_chat_leave">Lascia un messaggio</string>
+    <string name="hs_chat_thanks">Grazie! Abbiamo ricevuto il suo messaggio e le risponderemo via email.</string>
+    <string name="hs_chat_start">Avvia chat</string>
+    <string name="hs_chat_email_required">Inserisca il suo indirizzo email per avviare la chat.</string>
+    <string name="hs_chat_invalid_email">Inserisca un indirizzo email valido.</string>
+    <string name="hs_chat_too_large">I file possono avere una dimensione massima di {mb} MB.</string>
+    <string name="hs_chat_error">Si è verificato un errore. Riprovi.</string>
+    <string name="hs_chat_download">Scarica</string>
+    <string name="hs_chat_resolved">Questa conversazione è stata contrassegnata come risolta. Invii un nuovo messaggio per riaprirla.</string>
+</resources>

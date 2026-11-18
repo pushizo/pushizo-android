@@ -34,6 +34,10 @@ data class HsNotification(
     val accentColor: Int? = null,
     /** Kilit ekranı görünürlüğü (`hs_visibility`): 1 public, 0 private, -1 secret. */
     val visibility: Int? = null,
+    /** Canlı güncelleme (`hs_live_progress`, 0–100). */
+    val liveProgress: Int? = null,
+    /** `hs_ongoing=1` ise bildirim kaydırılarak kapanmaz. */
+    val ongoing: Boolean = false,
     /**
      * Tepsideki Android bildirim kimliği (`removeNotification` ile kaldırmak için). Collapse kimliği veya teslimat
      * kimliğinden türetilir; ikisi de yoksa oluşturulduğu ana göre tekildir.
@@ -74,6 +78,8 @@ data class HsNotification(
                 largeIcon = data["hs_large_icon"].nonBlank(),
                 accentColor = parseAccentColor(data["hs_accent_color"]),
                 visibility = parseVisibility(data["hs_visibility"]),
+                liveProgress = data["hs_live_progress"]?.toIntOrNull()?.coerceIn(0, 100),
+                ongoing = data["hs_ongoing"] == "1",
             )
         }
 

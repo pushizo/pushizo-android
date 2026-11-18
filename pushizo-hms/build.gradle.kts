@@ -46,7 +46,7 @@ publishing {
         register<MavenPublication>("release") {
             groupId = "com.pushizo"
             artifactId = "pushizo-android-hms"
-            version = "0.1.0"
+            version = "0.3.0"
             afterEvaluate { from(components["release"]) }
             pom {
                 name.set("Pushizo Android SDK - Huawei HMS")
@@ -77,7 +77,7 @@ publishing {
         // Çekirdek modülle aynı GitHub Packages deposu (`gpr.user`/`gpr.key` veya GITHUB_ACTOR/GITHUB_TOKEN).
         maven {
             name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/pushizo/pushizo")
+            url = uri("https://maven.pkg.github.com/exec0de/pushizo")
             credentials {
                 username = (project.findProperty("gpr.user") as String?) ?: System.getenv("GITHUB_ACTOR")
                 password = (project.findProperty("gpr.key") as String?) ?: System.getenv("GITHUB_TOKEN")

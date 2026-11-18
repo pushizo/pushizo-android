@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
+<resources>
+    <string name="hs_in_app_close">关闭</string>
+    <string name="hs_in_app_message">消息</string>
+    <string name="hs_in_app_carousel_card">卡片 %1$d/%2$d：%3$s</string>
+    <string name="hs_location_rationale_title">共享您的位置</string>
+    <string name="hs_location_rationale_message">为了向您发送附近的相关通知，我们仅在应用打开期间使用您的大致位置。您可以随时关闭此功能。</string>
+    <string name="hs_location_rationale_continue">继续</string>
+    <string name="hs_location_rationale_not_now">以后再说</string>
+    <string name="hs_geofence_rationale_title">允许后台获取位置</string>
+    <string name="hs_geofence_rationale_message">为了在您到达某个地点时通知您，应用需要始终访问您的位置。我们不会发送您的坐标，仅共享您进入或离开某个区域的信息。您可以随时关闭此功能。</string>
+    <string name="hs_cards_empty">暂无卡片</string>
+    <string name="hs_cards_error">无法加载卡片。</string>
+    <string name="hs_cards_retry">重试</string>
+    <string name="hs_cards_dismiss">关闭卡片</string>
+    <string name="hs_cards_pinned">已置顶</string>
+    <string name="hs_delivery_title">不要错过通知</string>
+    <string name="hs_delivery_message">此设备的电池设置可能会延迟通知。为了及时收到通知，请允许本应用在后台运行且不受电池限制。</string>
+    <string name="hs_delivery_message_vendor">此设备可能会停止后台应用，导致通知延迟甚至无法送达。为了及时收到通知，请为本应用开启自启动并解除电池限制。</string>
+    <string name="hs_delivery_open_settings">打开设置</string>
+    <string name="hs_chat_title">在线咨询</string>
+    <string name="hs_chat_close">关闭聊天</string>
+    <string name="hs_chat_online">在线</string>
+    <string name="hs_chat_offline">我们目前不在线</string>
+    <string name="hs_chat_placeholder">输入消息…</string>
+    <string name="hs_chat_send">发送</string>
+    <string name="hs_chat_attach">添加附件</string>
+    <string name="hs_chat_typing">{name} 正在输入…</string>
+    <string name="hs_chat_read">已读</string>
+    <string name="hs_chat_delivered">已送达</string>
+    <string name="hs_chat_sent">已发送</string>
+    <string name="hs_chat_sending">正在发送…</string>
+    <string name="hs_chat_failed">未发送</string>
+    <string name="hs_chat_retry">重试</string>
+    <string name="hs_chat_bot">助手</string>
+    <string name="hs_chat_agent">客服</string>
+    <string name="hs_chat_you">您</string>
+    <string name="hs_chat_offline_default">我们目前不在线。请留下您的电子邮件，我们会尽快回复您。</string>
+    <string name="hs_chat_email">您的电子邮件</string>
+    <string name="hs_chat_name">您的姓名（选填）</string>
+    <string name="hs_chat_message">您的留言</string>
+    <string name="hs_chat_leave">留言</string>
+    <string name="hs_chat_thanks">谢谢！我们已收到您的留言，将通过电子邮件回复您。</string>
+    <string name="hs_chat_start">开始聊天</string>
+    <string name="hs_chat_email_required">请输入电子邮件以开始聊天。</string>
+    <string name="hs_chat_invalid_email">请输入有效的电子邮件地址。</string>
+    <string name="hs_chat_too_large">文件大小不能超过 {mb} MB。</string>
+    <string name="hs_chat_error">出现问题，请重试。</string>
+    <string name="hs_chat_download">下载</string>
+    <string name="hs_chat_resolved">此对话已标记为已解决。发送新消息即可重新开启。</string>
+</resources>

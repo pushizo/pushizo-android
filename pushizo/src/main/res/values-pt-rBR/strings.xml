@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
+<resources>
+    <string name="hs_in_app_close">Fechar</string>
+    <string name="hs_in_app_message">Mensagem</string>
+    <string name="hs_in_app_carousel_card">Cartão %1$d/%2$d: %3$s</string>
+    <string name="hs_location_rationale_title">Compartilhe sua localização</string>
+    <string name="hs_location_rationale_message">Usamos sua localização aproximada apenas enquanto o app está aberto, para enviar notificações relevantes perto de você. Você pode desativar isso a qualquer momento.</string>
+    <string name="hs_location_rationale_continue">Continuar</string>
+    <string name="hs_location_rationale_not_now">Agora não</string>
+    <string name="hs_geofence_rationale_title">Permitir localização em segundo plano</string>
+    <string name="hs_geofence_rationale_message">Para avisar você quando chegar a um local, o app precisa de acesso à localização o tempo todo. Suas coordenadas não são enviadas; apenas a entrada ou saída de uma área é compartilhada. Você pode desativar isso a qualquer momento.</string>
+    <string name="hs_cards_empty">Nenhum cartão ainda</string>
+    <string name="hs_cards_error">Não foi possível carregar os cartões.</string>
+    <string name="hs_cards_retry">Tentar novamente</string>
+    <string name="hs_cards_dismiss">Dispensar cartão</string>
+    <string name="hs_cards_pinned">Fixado</string>
+    <string name="hs_delivery_title">Não perca notificações</string>
+    <string name="hs_delivery_message">As configurações de bateria deste dispositivo podem atrasar as notificações. Para recebê-las na hora, permita que o app funcione em segundo plano sem restrições de bateria.</string>
+    <string name="hs_delivery_message_vendor">Este dispositivo pode encerrar apps em segundo plano, então as notificações podem chegar atrasadas ou nem chegar. Para recebê-las na hora, ative a inicialização automática deste app e remova as restrições de bateria.</string>
+    <string name="hs_delivery_open_settings">Abrir configurações</string>
+    <string name="hs_chat_title">Fale conosco</string>
+    <string name="hs_chat_close">Fechar chat</string>
+    <string name="hs_chat_online">Online</string>
+    <string name="hs_chat_offline">Estamos offline</string>
+    <string name="hs_chat_placeholder">Digite sua mensagem…</string>
+    <string name="hs_chat_send">Enviar</string>
+    <string name="hs_chat_attach">Anexar um arquivo</string>
+    <string name="hs_chat_typing">{name} está digitando…</string>
+    <string name="hs_chat_read">Lido</string>
+    <string name="hs_chat_delivered">Entregue</string>
+    <string name="hs_chat_sent">Enviado</string>
+    <string name="hs_chat_sending">Enviando…</string>
+    <string name="hs_chat_failed">Não enviado</string>
+    <string name="hs_chat_retry">Tentar novamente</string>
+    <string name="hs_chat_bot">Assistente</string>
+    <string name="hs_chat_agent">Atendente</string>
+    <string name="hs_chat_you">Você</string>
+    <string name="hs_chat_offline_default">Estamos offline no momento. Deixe seu e-mail e entraremos em contato.</string>
+    <string name="hs_chat_email">Seu e-mail</string>
+    <string name="hs_chat_name">Seu nome (opcional)</string>
+    <string name="hs_chat_message">Sua mensagem</string>
+    <string name="hs_chat_leave">Deixar uma mensagem</string>
+    <string name="hs_chat_thanks">Obrigado! Recebemos sua mensagem e responderemos por e-mail.</string>
+    <string name="hs_chat_start">Iniciar chat</string>
+    <string name="hs_chat_email_required">Digite seu e-mail para iniciar o chat.</string>
+    <string name="hs_chat_invalid_email">Digite um endereço de e-mail válido.</string>
+    <string name="hs_chat_too_large">Os arquivos podem ter até {mb} MB.</string>
+    <string name="hs_chat_error">Algo deu errado. Tente novamente.</string>
+    <string name="hs_chat_download">Baixar</string>
+    <string name="hs_chat_resolved">Esta conversa foi marcada como resolvida. Envie uma nova mensagem para reabri-la.</string>
+</resources>

@@ -26,14 +26,14 @@ class HsInAppParserTest {
                 "dismissible": false,
                 "auto_dismiss_seconds": 8,
                 "blocks": [
-                  { "type": "image", "url": "https://cdn.example.com/sale.png", "alt": "İndirim" },
+                  { "type": "image", "url": "https://cdn.pushizo.com/sale.png", "alt": "İndirim" },
                   { "type": "title", "text": "Merhaba Ayşe" },
                   { "type": "body", "text": "Sepetin seni bekliyor" },
                   { "type": "button", "id": "go", "text": "Sepete git", "action": { "type": "deeplink", "url": "myapp://cart" }, "background_color": "#18181b", "text_color": null },
-                  { "type": "button", "id": "web", "text": "Web", "action": { "type": "url", "url": "https://example.com/sale" }, "background_color": null, "text_color": null },
+                  { "type": "button", "id": "web", "text": "Web", "action": { "type": "url", "url": "https://pushizo.com/sale" }, "background_color": null, "text_color": null },
                   { "type": "button", "id": "vip", "text": "VIP", "action": { "type": "tags", "tags": { "segment": "vip" } }, "background_color": null, "text_color": null },
                   { "type": "button", "id": "bad", "text": "Kötü", "action": { "type": "url", "url": "javascript:alert(1)" }, "background_color": null, "text_color": null },
-                  { "type": "video", "url": "https://cdn.example.com/x.mp4" }
+                  { "type": "video", "url": "https://cdn.pushizo.com/x.mp4" }
                 ]
               },
               "remaining_impressions": 2,
@@ -75,13 +75,13 @@ class HsInAppParserTest {
 
         // Görsel, başlık, gövde ve geçerli 3 düğme; geçersiz URL'li düğme ve tanınmayan blok atlanır.
         assertEquals(6, m.display.blocks.size)
-        assertEquals(HsInAppBlock.Image("https://cdn.example.com/sale.png", "İndirim"), m.display.blocks[0])
+        assertEquals(HsInAppBlock.Image("https://cdn.pushizo.com/sale.png", "İndirim"), m.display.blocks[0])
         assertEquals(HsInAppBlock.Title("Merhaba Ayşe"), m.display.blocks[1])
         val buttons = m.display.buttons
         assertEquals(listOf("go", "web", "vip"), buttons.map { it.id })
         assertEquals(HsInAppAction.Deeplink("myapp://cart"), buttons[0].action)
         assertEquals("#18181b", buttons[0].backgroundColor)
-        assertEquals(HsInAppAction.Url("https://example.com/sale"), buttons[1].action)
+        assertEquals(HsInAppAction.Url("https://pushizo.com/sale"), buttons[1].action)
         assertEquals(HsInAppAction.Tags(mapOf("segment" to "vip")), buttons[2].action)
         assertTrue(m.toJson().contains("\"iam_1\""))
 
@@ -136,7 +136,7 @@ class HsInAppParserTest {
               "display": { "layout": "modal", "dismissible": true, "content_type": "blocks", "html": null, "html_height": null, "blocks": [
                 { "type": "title", "text": "Yeni özellikler" },
                 { "type": "carousel", "id": "steps", "cards": [
-                  { "id": "c1", "title": "Adım 1", "body": "Profilini tamamla", "image_url": "https://cdn.example.com/1.png", "image_alt": "Profil",
+                  { "id": "c1", "title": "Adım 1", "body": "Profilini tamamla", "image_url": "https://cdn.pushizo.com/1.png", "image_alt": "Profil",
                     "button": { "id": "b1", "text": "Başla", "action": { "type": "deeplink", "url": "myapp://profile" } } },
                   { "id": "c2", "title": "Adım 2", "body": null, "image_url": null, "image_alt": null, "button": null },
                   { "id": "c3", "title": "Adım 3", "body": null, "image_url": null, "image_alt": null,
@@ -159,7 +159,7 @@ class HsInAppParserTest {
         val first = carousel.cards[0]
         assertEquals("Adım 1", first.title)
         assertEquals("Profilini tamamla", first.body)
-        assertEquals("https://cdn.example.com/1.png", first.imageUrl)
+        assertEquals("https://cdn.pushizo.com/1.png", first.imageUrl)
         assertEquals("Profil", first.imageAlt)
         assertEquals(HsInAppAction.Deeplink("myapp://profile"), first.button?.action)
         assertNull(carousel.cards[1].button)
@@ -290,7 +290,7 @@ class HsInAppParserTest {
               "data": [
                 { "id": "ibx_2", "message_id": "msg_2", "title": "Kargo", "body": "Siparişin yolda", "url": "myapp://orders/2", "image_url": null,
                   "data": { "order": "2" }, "read": false, "read_at": null, "archived_at": null, "expires_at": "2026-11-01T00:00:00Z", "created_at": "2026-10-07T10:00:00Z" },
-                { "id": "ibx_1", "message_id": null, "title": null, "body": "Hoş geldin", "url": null, "image_url": "https://cdn.example.com/a.png",
+                { "id": "ibx_1", "message_id": null, "title": null, "body": "Hoş geldin", "url": null, "image_url": "https://cdn.pushizo.com/a.png",
                   "data": {}, "read": true, "read_at": "2026-10-06T09:00:00Z", "archived_at": null, "expires_at": null, "created_at": "2026-10-06T08:00:00Z" }
               ],
               "unread_count": 1,

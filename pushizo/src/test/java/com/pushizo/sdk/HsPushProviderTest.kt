@@ -11,9 +11,47 @@ import org.junit.Test
 class HsPushProviderTest {
 
     @Test
+    fun `FID bayragi Boolean ve metin olarak okunur`() {
+        assertTrue(HsFcmRegistration.isFidValue(true))
+        assertTrue(HsFcmRegistration.isFidValue("true"))
+        assertTrue(HsFcmRegistration.isFidValue("TRUE"))
+        assertFalse(HsFcmRegistration.isFidValue(false))
+        assertFalse(HsFcmRegistration.isFidValue("false"))
+        assertFalse(HsFcmRegistration.isFidValue(null))
+    }
+
+    @Test(expected = NoSuchMethodException::class)
+    fun `eski Firebase surumunde register yoksa acik hata verir`() {
+        HsFcmRegistration.invokeRegister(Any())
+    }
+
+    @Test
+    fun `PushizoMessagingService firebase 25 imzasini tasir`() {
+        val method = PushizoMessagingService::class.java.getMethod("onRegistered", String::class.java)
+        assertEquals(Void.TYPE, method.returnType)
+    }
+
+    @Test
+    fun `profil gecersiz e-posta ve telefonu giristen once reddeder`() {
+        HsUserProfile(email = "ali@ornek.com", sms = "+905551112233", tags = mapOf("plan" to "pro")).validate()
+        HsUserProfile().validate()
+        assertThrowsIllegal { HsUserProfile(email = "gecersiz").validate() }
+        assertThrowsIllegal { HsUserProfile(sms = "abc").validate() }
+    }
+
+    private fun assertThrowsIllegal(block: () -> Unit) {
+        try {
+            block()
+        } catch (_: IllegalArgumentException) {
+            return
+        }
+        throw AssertionError("IllegalArgumentException bekleniyordu")
+    }
+
+    @Test
     fun `HMS data JSON metni FCM data mapine cevrilir`() {
         val hs = JSONObject().put("dlv", "dlv_1").put("msg", "msg_1")
-        val actions = JSONArray().put(JSONObject().put("id", "buy").put("title", "Satın al").put("url", "https://example.com/buy"))
+        val actions = JSONArray().put(JSONObject().put("id", "buy").put("title", "Satın al").put("url", "https://pushizo.com/buy"))
         val json = JSONObject()
             .put("hs", hs.toString()) // sunucu `hs` alanını metin olarak gönderir
             .put("hs_delivery_id", "dlv_1")
@@ -43,7 +81,7 @@ class HsPushProviderTest {
         assertEquals("msg_1", n.messageId)
         assertEquals("Kampanya", n.title)
         assertEquals("Sepetinizde ürün var", n.body)
-        assertEquals(listOf(HsAction("buy", "Satın al", "https://example.com/buy")), n.actions)
+        assertEquals(listOf(HsAction("buy", "Satın al", "https://pushizo.com/buy")), n.actions)
         assertEquals(0xFF9900FF.toInt(), n.accentColor)
         assertFalse(n.silent)
         assertEquals(mapOf("order_id" to "42", "vip" to "true"), n.data)

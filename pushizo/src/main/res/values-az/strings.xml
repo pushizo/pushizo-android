@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Üretilmiş dosya: sdk/scripts/gen-mobile-strings.mjs (kaynak sdk/i18n/mobile). Elle düzenlemeyin. -->
+<resources>
+    <string name="hs_in_app_close">Bağla</string>
+    <string name="hs_in_app_message">Mesaj</string>
+    <string name="hs_in_app_carousel_card">Kart %1$d/%2$d: %3$s</string>
+    <string name="hs_location_rationale_title">Məkanınızı paylaşın</string>
+    <string name="hs_location_rationale_message">Təxmini məkanınızdan yalnız tətbiq açıq olduqda, sizə yaxınlıqdakı uyğun bildirişləri göndərmək üçün istifadə edirik. Bunu istənilən vaxt söndürə bilərsiniz.</string>
+    <string name="hs_location_rationale_continue">Davam et</string>
+    <string name="hs_location_rationale_not_now">İndi yox</string>
+    <string name="hs_geofence_rationale_title">Arxa fonda məkana icazə verin</string>
+    <string name="hs_geofence_rationale_message">Bir yerə çatdığınızda sizə bildiriş göndərmək üçün tətbiqin məkanınıza daim çıxışı olmalıdır. Koordinatlarınız göndərilmir; yalnız əraziyə daxil olmağınız və ya oradan çıxmağınız paylaşılır. Bunu istənilən vaxt söndürə bilərsiniz.</string>
+    <string name="hs_cards_empty">Hələ kart yoxdur</string>
+    <string name="hs_cards_error">Kartları yükləmək mümkün olmadı.</string>
+    <string name="hs_cards_retry">Yenidən cəhd et</string>
+    <string name="hs_cards_dismiss">Kartı gizlət</string>
+    <string name="hs_cards_pinned">Sabitlənib</string>
+    <string name="hs_delivery_title">Bildirişləri qaçırmayın</string>
+    <string name="hs_delivery_message">Bu cihazdakı batareya ayarları bildirişləri gecikdirə bilər. Bildirişləri vaxtında almaq üçün tətbiqin arxa planda batareya məhdudiyyəti olmadan işləməsinə icazə verin.</string>
+    <string name="hs_delivery_message_vendor">Bu cihaz arxa plandakı tətbiqləri dayandıra bildiyi üçün bildirişlər gec gələ və ya heç gəlməyə bilər. Bildirişləri vaxtında almaq üçün bu tətbiqdə avtomatik başlatmanı açın və batareya məhdudiyyətini götürün.</string>
+    <string name="hs_delivery_open_settings">Ayarları aç</string>
+    <string name="hs_chat_title">Bizimlə yazışın</string>
+    <string name="hs_chat_close">Söhbəti bağla</string>
+    <string name="hs_chat_online">Onlayn</string>
+    <string name="hs_chat_offline">Hazırda onlayn deyilik</string>
+    <string name="hs_chat_placeholder">Mesajınızı yazın…</string>
+    <string name="hs_chat_send">Göndər</string>
+    <string name="hs_chat_attach">Fayl əlavə et</string>
+    <string name="hs_chat_typing">{name} yazır…</string>
+    <string name="hs_chat_read">Oxundu</string>
+    <string name="hs_chat_delivered">Çatdırıldı</string>
+    <string name="hs_chat_sent">Göndərildi</string>
+    <string name="hs_chat_sending">Göndərilir…</string>
+    <string name="hs_chat_failed">Göndərilmədi</string>
+    <string name="hs_chat_retry">Yenidən cəhd et</string>
+    <string name="hs_chat_bot">Assistent</string>
+    <string name="hs_chat_agent">Nümayəndə</string>
+    <string name="hs_chat_you">Siz</string>
+    <string name="hs_chat_offline_default">Hazırda onlayn deyilik. E-poçt ünvanınızı qeyd edin, sizinlə əlaqə saxlayacağıq.</string>
+    <string name="hs_chat_email">E-poçt ünvanınız</string>
+    <string name="hs_chat_name">Adınız (istəyə bağlı)</string>
+    <string name="hs_chat_message">Mesajınız</string>
+    <string name="hs_chat_leave">Mesaj qoy</string>
+    <string name="hs_chat_thanks">Təşəkkür edirik! Mesajınızı aldıq və e-poçt vasitəsilə cavab verəcəyik.</string>
+    <string name="hs_chat_start">Söhbətə başla</string>
+    <string name="hs_chat_email_required">Söhbətə başlamaq üçün e-poçt ünvanınızı daxil edin.</string>
+    <string name="hs_chat_invalid_email">Düzgün e-poçt ünvanı daxil edin.</string>
+    <string name="hs_chat_too_large">Faylın ölçüsü ən çox {mb} MB ola bilər.</string>
+    <string name="hs_chat_error">Xəta baş verdi. Zəhmət olmasa, yenidən cəhd edin.</string>
+    <string name="hs_chat_download">Endir</string>
+    <string name="hs_chat_resolved">Bu söhbət həll edilmiş kimi qeyd olunub. Yenidən açmaq üçün yeni mesaj göndərin.</string>
+</resources>
